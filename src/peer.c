@@ -114,31 +114,64 @@ void process_get(char *chunkfile, char *outputfile) {
             num_chunks++;
         }
         
-        //construct WHOHAS packet(s)
-        //if can fit in one packet
-        uint16_t magic = htons(3752);
-        char version = 1;
-        char type = 0;
-        uint16_t head_len = htons(16);
-        if (num_chunks*SHA1_HASH_SIZE + 20 <= MAXPACKSIZE) {
-            int packet_size = num_chunks*SHA1_HASH_SIZE + 20;
-            char *packet = (char *) malloc(packet_size + 1);
-            memset(packet, '\0', packet_size+1);
-            packet[packet_size] = '\0';
-            uint16_t pack_len = htons(packet_size);
-            memcpy(packet, &magic, 2);
-            memcpy(packet+2, &version, 1);
-            memcpy(packet+3, &type, 1);
-            memcpy(packet+4, &head_len, 2);
-            print_hex(packet, packet_size);
-            memcpy(packet+6, &pack_len, 2);
-            print_hex(packet, packet_size+1);
-            
-        } else {
-        }
+        //construct and send WHOHAS packets
+        char *pack_buf = (char *) malloc(MAXPACKSIZE);
         
-        //send WHOHAS packet(s) to each peer
-        bt_peer_t *peer = config.peers;
+        //add all fields in header except for pack_len and n_chks
+        uint16_t magic = htons(3752);
+        memcpy(pack_buf, &magic, 2);
+        char version = 1;
+        memcpy(pack_buf+2, &version, 1);
+        char type = 0;
+        memcpy(pack_buf+3, &type, 1);
+        uint16_t head_len = htons(16);
+        memcpy(pack_buf+4, &head_len, 2);
+        
+        int sockfd;
+        if ((sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0 ) {
+            perror("socket creation failed");
+            exit(EXIT_FAILURE);
+        }
+        struct sockaddr_in peeraddr;
+        peeraddr.sin_family = AF_INET;
+        
+        uint16_t pack_len;
+        uint8_t n_chks;
+        char *hash_pointer = pack_buf+20;
+        while (hash_pointer < (pack_buf + MAXPACKSIZE) &&
+               head != NULL) {
+            memcpy(hash_pointer, head->hash, SHA1_HASH_SIZE);
+            hash_pointer += 20;
+            num_chunks--;
+            head = head->next;
+            
+            //if cannot fit in one packet
+            if (hash_pointer >= (pack_buf + MAXPACKSIZE)) {
+                //complete or modify header
+                pack_len = htons(MAXPACKSIZE);
+                memcpy(pack_buf+6, &pack_len, 2);
+                n_chks = (MAXPACKSIZE - 20) / SHA1_HASH_SIZE;
+                memcpy(pack_buf+16, &n_chks, 1);
+                
+                //send to all peers
+                bt_peer_t *peer = config.peers;
+                while (peer != NULL) {
+                    peer = peer->next;
+                }
+                
+                //start new packet
+                hash_pointer = pack_buf+20;
+            }
+            else if (head == NULL) {
+                //complete or modify header
+                pack_len = num_chunks*SHA1_HASH_SIZE + 20;
+                memcpy(pack_buf+6, &pack_len, 2);
+                memcpy(pack_buf+16, &num_chunks, 1);
+                
+                //send to peers
+                
+            }
+        }
     }
 }
 
