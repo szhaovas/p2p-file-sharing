@@ -16,114 +16,169 @@
 #include "spiffy.h"
 #include "bt_parse.h"
 #include "input_buffer.h"
+#include "chunk.h"
+#include "sha.h"
+
+#define MAXPACKSIZE 1500
+
+bt_config_t config;
 
 void peer_run(bt_config_t *config);
 
+typedef struct chunk_i {
+    short id;
+    uint8_t hash[SHA1_HASH_SIZE];
+    struct chunk_i *next;
+} chunk_info;
+typedef struct chunk_i chunk_info;
+
 int main(int argc, char **argv) {
-  bt_config_t config;
-
-  bt_init(&config, argc, argv);
-
-  DPRINTF(DEBUG_INIT, "peer.c main beginning\n");
-
+    
+    bt_init(&config, argc, argv);
+    
+    DPRINTF(DEBUG_INIT, "peer.c main beginning\n");
+    
 #ifdef TESTING
-  config.identity = 1; // your group number here
-  strcpy(config.chunk_file, "chunkfile");
-  strcpy(config.has_chunk_file, "haschunks");
+    config.identity = 1; // your group number here
+    strcpy(config.chunk_file, "chunkfile");
+    strcpy(config.has_chunk_file, "haschunks");
 #endif
-
-  bt_parse_command_line(&config);
-
+    
+    bt_parse_command_line(&config);
+    
 #ifdef DEBUG
-  if (debug & DEBUG_INIT) {
-    bt_dump_config(&config);
-  }
+    if (debug & DEBUG_INIT) {
+        bt_dump_config(&config);
+    }
 #endif
-  
-  peer_run(&config);
-  return 0;
+    
+    peer_run(&config);
+    return 0;
 }
 
 
 void process_inbound_udp(int sock) {
-  #define BUFLEN 1500
-  struct sockaddr_in from;
-  socklen_t fromlen;
-  char buf[BUFLEN];
-
-  fromlen = sizeof(from);
-  spiffy_recvfrom(sock, buf, BUFLEN, 0, (struct sockaddr *) &from, &fromlen);
-
-  printf("PROCESS_INBOUND_UDP SKELETON -- replace!\n"
-	 "Incoming message from %s:%d\n%s\n\n", 
-	 inet_ntoa(from.sin_addr),
-	 ntohs(from.sin_port),
-	 buf);
+#define BUFLEN 1500
+    struct sockaddr_in from;
+    socklen_t fromlen;
+    char buf[BUFLEN];
+    
+    fromlen = sizeof(from);
+    spiffy_recvfrom(sock, buf, BUFLEN, 0, (struct sockaddr *) &from, &fromlen);
+    
+    printf("PROCESS_INBOUND_UDP SKELETON -- replace!\n"
+           "Incoming message from %s:%d\n%s\n\n",
+           inet_ntoa(from.sin_addr),
+           ntohs(from.sin_port),
+           buf);
 }
 
 void process_get(char *chunkfile, char *outputfile) {
-  printf("PROCESS GET SKELETON CODE CALLED.  Fill me in!  (%s, %s)\n", 
-	chunkfile, outputfile);
+    FILE *chunkFile;
+    //id 2 bytes
+    //blank space 1 byte
+    //hash SHA1_HASH_SIZE*2
+    //1 byte for NULL terminator
+    char line[SHA1_HASH_SIZE*2 + 4];
+    char delim[] = " ";
+    
+    chunkFile = fopen(chunkfile, "r");
+    if (chunkFile == NULL) {
+        perror("cannot open chunkfile");
+    } else {
+        //build a linked list of wanted chunks
+        chunk_info *head = NULL;
+        int num_chunks = 0;
+        while (fgets(line, sizeof(line), chunkFile) != NULL) {
+            chunk_info *chk = (chunk_info *) malloc(sizeof(chunk_info));;
+            chk->id = (short) strtol(strtok(line, delim), NULL, 10);
+            hex2binary(strtok(NULL, delim), SHA1_HASH_SIZE*2, chk->hash);
+            chk->next = head;
+            head = chk;
+            num_chunks++;
+        }
+        
+        //construct WHOHAS packet(s)
+        //if can fit in one packet
+        short magic = 3752;
+        char version = 1;
+        char type = 0;
+        short head_len = 16;
+        if (num_chunks*SHA1_HASH_SIZE + 20 <= MAXPACKSIZE) {
+            char *packet = (char *) malloc(num_chunks*SHA1_HASH_SIZE + 20);
+            short pack_len = num_chunks*SHA1_HASH_SIZE + 20;
+            memcpy(packet, &magic, 2);
+            memcpy(packet+2, &version, 1);
+            memcpy(packet+3, &type, 1);
+            memcpy(packet+4, &head_len, 2);
+            memcpy(packet+6, &pack_len, 2);
+            packet[3] = '\0';
+        } else {
+        }
+        
+        //send WHOHAS packet(s) to each peer
+        bt_peer_t *peer = config.peers;
+    }
 }
 
 void handle_user_input(char *line, void *cbdata) {
-  char chunkf[128], outf[128];
-
-  bzero(chunkf, sizeof(chunkf));
-  bzero(outf, sizeof(outf));
-
-  if (sscanf(line, "GET %120s %120s", chunkf, outf)) {
-    if (strlen(outf) > 0) {
-      process_get(chunkf, outf);
+    char chunkf[128], outf[128];
+    
+    bzero(chunkf, sizeof(chunkf));
+    bzero(outf, sizeof(outf));
+    
+    if (sscanf(line, "GET %120s %120s", chunkf, outf)) {
+        if (strlen(outf) > 0) {
+            process_get(chunkf, outf);
+        }
     }
-  }
 }
 
 
 void peer_run(bt_config_t *config) {
-  int sock;
-  struct sockaddr_in myaddr;
-  fd_set readfds;
-  struct user_iobuf *userbuf;
-  
-  if ((userbuf = create_userbuf()) == NULL) {
-    perror("peer_run could not allocate userbuf");
-    exit(-1);
-  }
-  
-  if ((sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_IP)) == -1) {
-    perror("peer_run could not create socket");
-    exit(-1);
-  }
-  
-  bzero(&myaddr, sizeof(myaddr));
-  myaddr.sin_family = AF_INET;
-  myaddr.sin_addr.s_addr = htonl(INADDR_ANY);
-  myaddr.sin_port = htons(config->myport);
-  
-  if (bind(sock, (struct sockaddr *) &myaddr, sizeof(myaddr)) == -1) {
-    perror("peer_run could not bind socket");
-    exit(-1);
-  }
-  
-  spiffy_init(config->identity, (struct sockaddr *)&myaddr, sizeof(myaddr));
-  
-  while (1) {
-    int nfds;
-    FD_SET(STDIN_FILENO, &readfds);
-    FD_SET(sock, &readfds);
+    int sock;
+    struct sockaddr_in myaddr;
+    fd_set readfds;
+    struct user_iobuf *userbuf;
     
-    nfds = select(sock+1, &readfds, NULL, NULL, NULL);
-    
-    if (nfds > 0) {
-      if (FD_ISSET(sock, &readfds)) {
-	process_inbound_udp(sock);
-      }
-      
-      if (FD_ISSET(STDIN_FILENO, &readfds)) {
-	process_user_input(STDIN_FILENO, userbuf, handle_user_input,
-			   "Currently unused");
-      }
+    if ((userbuf = create_userbuf()) == NULL) {
+        perror("peer_run could not allocate userbuf");
+        exit(-1);
     }
-  }
+    
+    if ((sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_IP)) == -1) {
+        perror("peer_run could not create socket");
+        exit(-1);
+    }
+    
+    bzero(&myaddr, sizeof(myaddr));
+    myaddr.sin_family = AF_INET;
+    myaddr.sin_addr.s_addr = htonl(INADDR_ANY);
+    myaddr.sin_port = htons(config->myport);
+    
+    if (bind(sock, (struct sockaddr *) &myaddr, sizeof(myaddr)) == -1) {
+        perror("peer_run could not bind socket");
+        exit(-1);
+    }
+    
+    spiffy_init(config->identity, (struct sockaddr *)&myaddr, sizeof(myaddr));
+    
+    while (1) {
+        int nfds;
+        FD_SET(STDIN_FILENO, &readfds);
+        FD_SET(sock, &readfds);
+        
+        nfds = select(sock+1, &readfds, NULL, NULL, NULL);
+        
+        if (nfds > 0) {
+            if (FD_ISSET(sock, &readfds)) {
+                process_inbound_udp(sock);
+            }
+            
+            if (FD_ISSET(STDIN_FILENO, &readfds)) {
+                process_user_input(STDIN_FILENO, userbuf, handle_user_input,
+                                   "Currently unused");
+            }
+        }
+    }
 }
