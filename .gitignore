@@ -9,11 +9,6 @@ Icon
 # macOS - Thumbnails
 ._*
 
-# IDEs
-*/.vscode
-
-# Project-specific files
-
 # Prerequisites
 *.d
 
