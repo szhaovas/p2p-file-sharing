@@ -38,4 +38,6 @@ extern "C" {
 }
 #endif
 
+void print_hex(char* str, int max);
+
 #endif /* _DEBUG_H_ */

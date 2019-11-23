@@ -58,6 +58,22 @@ int main() {
     exit(0);
 }
 
+void print_hex(char* str, int max)
+{
+    
+    for (int i = 0; i < max; i++)
+    {
+        if (str[i] == '\0')
+        {
+            printf("00 ");
+        }
+        else
+        {
+            printf("%02x ", str[i] & 0xff);
+        }
+    }
+}
+
 #endif
 
 /* Packet debugging utilities */
