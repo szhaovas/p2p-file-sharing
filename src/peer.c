@@ -73,6 +73,22 @@ void process_inbound_udp(int sock) {
            buf);
 }
 
+void print_hex(char* str, int max)
+{
+    
+    for (int i = 0; i < max; i++)
+    {
+        if (str[i] == '\0')
+        {
+            printf("00 ");
+        }
+        else
+        {
+            printf("%02x ", str[i] & 0xff);
+        }
+    }
+}
+
 void process_get(char *chunkfile, char *outputfile) {
     FILE *chunkFile;
     //id 2 bytes
@@ -100,19 +116,24 @@ void process_get(char *chunkfile, char *outputfile) {
         
         //construct WHOHAS packet(s)
         //if can fit in one packet
-        short magic = 3752;
+        uint16_t magic = htons(3752);
         char version = 1;
         char type = 0;
-        short head_len = 16;
+        uint16_t head_len = htons(16);
         if (num_chunks*SHA1_HASH_SIZE + 20 <= MAXPACKSIZE) {
-            char *packet = (char *) malloc(num_chunks*SHA1_HASH_SIZE + 20);
-            short pack_len = num_chunks*SHA1_HASH_SIZE + 20;
+            int packet_size = num_chunks*SHA1_HASH_SIZE + 20;
+            char *packet = (char *) malloc(packet_size + 1);
+            memset(packet, '\0', packet_size+1);
+            packet[packet_size] = '\0';
+            uint16_t pack_len = htons(packet_size);
             memcpy(packet, &magic, 2);
             memcpy(packet+2, &version, 1);
             memcpy(packet+3, &type, 1);
             memcpy(packet+4, &head_len, 2);
+            print_hex(packet, packet_size);
             memcpy(packet+6, &pack_len, 2);
-            packet[3] = '\0';
+            print_hex(packet, packet_size+1);
+            
         } else {
         }
         
