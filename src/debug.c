@@ -75,6 +75,7 @@ void print_hex(char* str, int max)
             printf("%02x ", str[i] & 0xff);
         }
     }
+    printf("\n");
 }
 
 /* Packet debugging utilities */

@@ -64,23 +64,6 @@ int main(int argc, char **argv) {
     return 0;
 }
 
-void print_hex(char* str, int max)
-{
-
-    for (int i = 0; i < max; i++)
-    {
-        if (str[i] == '\0')
-        {
-            printf("00 ");
-        }
-        else
-        {
-            printf("%02x ", str[i] & 0xff);
-        }
-    }
-    printf("\n\n");
-}
-
 
 int read_chunk_file(char* chunk_file, LinkedList* chunk_list)
 {
@@ -224,7 +207,6 @@ void process_get(char *chunkfile, char *outputfile) {
         uint8_t num_chunks = 0;
         char *hash_pointer = pack_buf+20;
         while (head != NULL) {
-            print_hex(pack_buf, MAXPACKSIZE);
             memcpy(hash_pointer, head->hash, SHA1_HASH_SIZE);
             hash_pointer += 20;
             pack_len += 20;
@@ -259,7 +241,6 @@ void process_get(char *chunkfile, char *outputfile) {
         pack_len = htons(pack_len);
         memcpy(pack_buf+6, &pack_len, 2);
         memcpy(pack_buf+16, &num_chunks, 1);
-        print_hex(pack_buf, MAXPACKSIZE);
 
         //send to peers
         bt_peer_t *peer = config.peers;
