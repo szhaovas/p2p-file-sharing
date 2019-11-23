@@ -26,13 +26,12 @@
 bt_config_t config;
 
 void peer_run(bt_config_t *config);
+int read_chunk_file(char* chunk_file, LinkedList* chunk_list);
 
-typedef struct chunk_i {
-    short id;
+typedef struct chunk_s {
+    uint16_t id;
     uint8_t hash[SHA1_HASH_SIZE];
-    struct chunk_i *next;
-} chunk_info;
-typedef struct chunk_i chunk_info;
+} chunk_t;
 
 int main(int argc, char **argv) {
     
@@ -59,6 +58,38 @@ int main(int argc, char **argv) {
 }
 
 
+
+int read_chunk_file(char* chunk_file, LinkedList* chunk_list)
+{
+    FILE * fp;
+    ssize_t read;
+    fp = fopen(chunk_file, "r");
+    if (fp == NULL)
+        return -1;
+    
+    while (1)
+    {
+        chunk_t* chunk = malloc(sizeof(chunk));
+        char hash_str[SHA1_HASH_SIZE*2];
+        read = fscanf(fp, "%hu %40c", &chunk->id, hash_str);
+        if (read == EOF) break;
+        else if (read != 2)
+        {
+            fclose(fp);
+            return -1;
+        }
+        hex2binary(hash_str, SHA1_HASH_SIZE*2, chunk->hash);
+        add_item(chunk_list, chunk);
+        printf("chunk %hu ", chunk->id);
+        print_hex((char *) chunk->hash, SHA1_HASH_SIZE);
+        printf("\n");
+     }
+    fclose(fp);
+    return 0;
+ }
+
+
+
 void process_inbound_udp(int sock) {
 #define BUFLEN 1500
     struct sockaddr_in from;
@@ -73,9 +104,10 @@ void process_inbound_udp(int sock) {
            inet_ntoa(from.sin_addr),
            ntohs(from.sin_port),
            buf);
-    uint8_t version, packet_type, num_hash;
+    uint8_t version, packet_type;
     uint16_t magic_no, header_len, packet_len;
     uint32_t seq_no, ack_no;
+    char* payload;
     parse_packet(buf,
                  &magic_no,
                  &version,
@@ -84,7 +116,7 @@ void process_inbound_udp(int sock) {
                  &packet_len,
                  &seq_no,
                  &ack_no,
-                 &num_hash);
+                 &payload);
     if (magic_no == MAGIC_NUMBER && version == VERSION)
     {
         switch (packet_type)

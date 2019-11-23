@@ -7,6 +7,7 @@
 //
 
 #include <stdint.h>
+#include <string.h>
 #include <arpa/inet.h>
 #include "packet.h"
 
@@ -19,7 +20,7 @@ int packet_field_info [8][2] = {
     {6, 2},  // 4. Total Packet Length   [2 B, uint16_t]
     {8, 4},  // 5. Sequence Number       [4 B, uint32_t]
     {12, 4}, // 6. Acknowledgment Number [4 B, uint32_t]
-}
+};
 
 
 int make_packet(char* buf,
@@ -39,6 +40,7 @@ int make_packet(char* buf,
     MAKE_FIELD(buf, P_SEQNO, htonl(seq_no));
     MAKE_FIELD(buf, P_ACKNO, htonl(ack_no));
     memcpy(buf + HEAD_LEN_NORMAL, payload, payload_len);
+    return 1;
 }
 
 
@@ -67,4 +69,5 @@ int parse_packet(char* buf,
     *packet_len = ntohs(*packet_len);
     *seq_no = ntohl(*seq_no);
     *ack_no = ntohl(*ack_no);
+    return 1;
 }

@@ -39,7 +39,8 @@ int make_packet(char* buf,
                 uint16_t  packet_len,
                 uint32_t seq_no,
                 uint32_t ack_no,
-                char* payload);
+                char* payload,
+                size_t payload_len);
 
 
 
@@ -57,15 +58,16 @@ int parse_packet(char* buf,
 
 #define MAKE_FIELD(buf, field_name, field_val) \
     do { \
-        memcpy(buf[packet_field_info[field_name][1]], \
-               field_val, \
+        int val = field_val; \
+        memcpy(&buf[packet_field_info[field_name][1]], \
+               &val, \
                packet_field_info[field_name][0]);\
     } while (0)
 
 #define EXTRACT_FIELD(buf, field_name, field_ptr) \
     do { \
         memcpy(field_ptr, \
-               buf[packet_field_info[field_name][1]], \
+               &buf[packet_field_info[field_name][1]], \
                packet_field_info[field_name][0]);\
     } while (0)
 
