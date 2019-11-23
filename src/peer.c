@@ -18,6 +18,8 @@
 #include "input_buffer.h"
 #include "chunk.h"
 #include "sha.h"
+#include "packet.h"
+#include "linked-list.h"
 
 #define MAXPACKSIZE 1500
 
@@ -71,20 +73,49 @@ void process_inbound_udp(int sock) {
            inet_ntoa(from.sin_addr),
            ntohs(from.sin_port),
            buf);
-}
-
-void print_hex(char* str, int max)
-{
-    
-    for (int i = 0; i < max; i++)
+    uint8_t version, packet_type, num_hash;
+    uint16_t magic_no, header_len, packet_len;
+    uint32_t seq_no, ack_no;
+    parse_packet(buf,
+                 &magic_no,
+                 &version,
+                 &packet_type,
+                 &header_len,
+                 &packet_len,
+                 &seq_no,
+                 &ack_no,
+                 &num_hash);
+    if (magic_no == MAGIC_NUMBER && version == VERSION)
     {
-        if (str[i] == '\0')
+        switch (packet_type)
         {
-            printf("00 ");
-        }
-        else
-        {
-            printf("%02x ", str[i] & 0xff);
+            case PTYPE_WHOHAS:
+                // TODO
+                break;
+            
+            case PTYPE_IHAVE:
+                // TODO
+                break;
+                
+            case PTYPE_GET:
+                // TODO
+                break;
+                
+            case PTYPE_DATA:
+                // TODO
+                break;
+                
+            case PTYPE_ACK:
+                // TODO
+                break;
+                
+            case PTYPE_DENIED:
+                // TODO
+                break;
+                
+            default:
+                // ERROR
+                break;
         }
     }
 }
