@@ -33,6 +33,13 @@ typedef struct chunk_s {
     uint8_t hash[SHA1_HASH_SIZE];
 } chunk_t;
 
+typedef struct chunk_i {
+    short id;
+    uint8_t hash[SHA1_HASH_SIZE];
+    struct chunk_i *next;
+} chunk_info;
+typedef struct chunk_i chunk_info;
+
 int main(int argc, char **argv) {
 
     bt_init(&config, argc, argv);
