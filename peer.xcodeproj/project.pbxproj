@@ -11,13 +11,15 @@
 		BF34CE4123898F6C00DABAEB /* spiffy.c in Sources */ = {isa = PBXBuildFile; fileRef = BF34CE2E23898F6C00DABAEB /* spiffy.c */; };
 		BF34CE4223898F6C00DABAEB /* Makefile in Sources */ = {isa = PBXBuildFile; fileRef = BF34CE2F23898F6C00DABAEB /* Makefile */; };
 		BF34CE4623898F6C00DABAEB /* debug.c in Sources */ = {isa = PBXBuildFile; fileRef = BF34CE3523898F6C00DABAEB /* debug.c */; };
-		BF34CE4723898F6C00DABAEB /* peer.c in Sources */ = {isa = PBXBuildFile; fileRef = BF34CE3723898F6C00DABAEB /* peer.c */; };
 		BF34CE4823898F6C00DABAEB /* chunk.c in Sources */ = {isa = PBXBuildFile; fileRef = BF34CE3823898F6C00DABAEB /* chunk.c */; };
 		BF34CE4923898F6C00DABAEB /* sha.c in Sources */ = {isa = PBXBuildFile; fileRef = BF34CE3923898F6C00DABAEB /* sha.c */; };
 		BF34CE4A23898F6C00DABAEB /* bt_parse.c in Sources */ = {isa = PBXBuildFile; fileRef = BF34CE3E23898F6C00DABAEB /* bt_parse.c */; };
 		BFE6457D2389905A008D09BB /* make_chunks.c in Sources */ = {isa = PBXBuildFile; fileRef = BF34CE2723898F6C00DABAEB /* make_chunks.c */; };
 		BFE6457E23899061008D09BB /* client.c in Sources */ = {isa = PBXBuildFile; fileRef = BF34CE3423898F6C00DABAEB /* client.c */; };
 		BFE6457F23899065008D09BB /* server.c in Sources */ = {isa = PBXBuildFile; fileRef = BF34CE3323898F6C00DABAEB /* server.c */; };
+		BFE645982389C798008D09BB /* packet.c in Sources */ = {isa = PBXBuildFile; fileRef = BFE645972389C798008D09BB /* packet.c */; };
+		BFE6459B2389DD51008D09BB /* linked-list.c in Sources */ = {isa = PBXBuildFile; fileRef = BFE645992389DD4F008D09BB /* linked-list.c */; };
+		BFE6459C2389E3BD008D09BB /* peer.c in Sources */ = {isa = PBXBuildFile; fileRef = BF34CE3723898F6C00DABAEB /* peer.c */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -88,6 +90,10 @@
 		BFE645602389903F008D09BB /* client */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = client; sourceTree = BUILT_PRODUCTS_DIR; };
 		BFE6456B23899045008D09BB /* server */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = server; sourceTree = BUILT_PRODUCTS_DIR; };
 		BFE6457623899056008D09BB /* make_chuncks */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = make_chuncks; sourceTree = BUILT_PRODUCTS_DIR; };
+		BFE645962389C798008D09BB /* packet.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = packet.h; sourceTree = "<group>"; };
+		BFE645972389C798008D09BB /* packet.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = packet.c; sourceTree = "<group>"; };
+		BFE645992389DD4F008D09BB /* linked-list.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = "linked-list.c"; sourceTree = "<group>"; };
+		BFE6459A2389DD50008D09BB /* linked-list.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "linked-list.h"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -144,6 +150,8 @@
 		BF34CE2623898F6C00DABAEB /* src */ = {
 			isa = PBXGroup;
 			children = (
+				BFE645992389DD4F008D09BB /* linked-list.c */,
+				BFE6459A2389DD50008D09BB /* linked-list.h */,
 				BF34CE3123898F6C00DABAEB /* bt_parse.h */,
 				BF34CE3E23898F6C00DABAEB /* bt_parse.c */,
 				BF34CE3A23898F6C00DABAEB /* input_buffer.h */,
@@ -168,6 +176,8 @@
 				BF34CE2723898F6C00DABAEB /* make_chunks.c */,
 				BF34CE3423898F6C00DABAEB /* client.c */,
 				BF34CE3323898F6C00DABAEB /* server.c */,
+				BFE645962389C798008D09BB /* packet.h */,
+				BFE645972389C798008D09BB /* packet.c */,
 			);
 			path = src;
 			sourceTree = "<group>";
@@ -294,11 +304,13 @@
 			files = (
 				BF34CE4923898F6C00DABAEB /* sha.c in Sources */,
 				BF34CE4A23898F6C00DABAEB /* bt_parse.c in Sources */,
+				BFE645982389C798008D09BB /* packet.c in Sources */,
 				BF34CE4023898F6C00DABAEB /* input_buffer.c in Sources */,
 				BF34CE4123898F6C00DABAEB /* spiffy.c in Sources */,
+				BFE6459C2389E3BD008D09BB /* peer.c in Sources */,
 				BF34CE4223898F6C00DABAEB /* Makefile in Sources */,
+				BFE6459B2389DD51008D09BB /* linked-list.c in Sources */,
 				BF34CE4823898F6C00DABAEB /* chunk.c in Sources */,
-				BF34CE4723898F6C00DABAEB /* peer.c in Sources */,
 				BF34CE4623898F6C00DABAEB /* debug.c in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

@@ -58,6 +58,9 @@ int main() {
     exit(0);
 }
 
+#endif
+
+
 void print_hex(char* str, int max)
 {
     
@@ -73,8 +76,6 @@ void print_hex(char* str, int max)
         }
     }
 }
-
-#endif
 
 /* Packet debugging utilities */
 
