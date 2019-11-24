@@ -131,8 +131,82 @@ void process_inbound_udp(int sock) {
         switch (packet_type)
         {
             case PTYPE_WHOHAS:
-                // TODO
+            {
+                LinkedList* i_have = (LinkedList*) malloc(sizeof(LinkedList));
+                init_list(i_have);
+                uint8_t num_hash = 0;
+                memcpy(&num_hash, payload, 1);
+                payload += 4; // FIXME: use constant
+                for (int i = 0; i < num_hash; i++)
+                {
+                    char hash[SHA1_HASH_SIZE];
+                    memcpy(hash, payload, SHA1_HASH_SIZE);
+                    printf("Looking for ");
+                    print_hex(hash, SHA1_HASH_SIZE);
+                    ITER_LOOP(it, owned_chunks)
+                    {
+                        chunk_t* chunk = (chunk_t *) iter_get_item(it);
+                        printf("Comparing with ");
+                        print_hex(chunk->hash, SHA1_HASH_SIZE);
+                        if (!strncmp(hash, (char*) chunk->hash, SHA1_HASH_SIZE))
+                        {
+                            add_item(i_have, chunk);
+                        }
+                    }
+                    ITER_END(it);
+                }
+                if (i_have->size)
+                {
+                    char reply_buf[BUFLEN];
+                    memset(reply_buf, '\0', BUFLEN);
+                    char* reply_payload, *reply_payload_start;
+                    reply_payload = reply_buf + HEAD_LEN_NORMAL;
+                    reply_payload_start = reply_payload;
+                    uint8_t num_hash = i_have->size;
+                    *reply_payload = num_hash;
+                    reply_payload += 4; // FIXME: use a constant
+                    ITER_LOOP(it, i_have)
+                    {
+                        chunk_t* chunk = (chunk_t *) iter_get_item(it);
+                        memcpy(reply_payload, (char*) chunk->hash, SHA1_HASH_SIZE);
+                        reply_payload += SHA1_HASH_SIZE;
+                    }
+                    ITER_END(it);
+                    
+                    make_packet(reply_buf,
+                                PTYPE_IHAVE,
+                                HEAD_LEN_NORMAL,
+                                reply_payload-reply_buf,
+                                FILED_N_A,
+                                FILED_N_A,
+                                reply_payload_start,
+                                reply_payload-reply_payload_start);
+                    
+                    bt_peer_t* peer = config.peers;
+                    bt_peer_t* to_peer = NULL;
+                    while (peer)
+                    {
+                        if (!memcmp(&peer->addr.sin_addr, &from.sin_addr, sizeof(from.sin_addr))
+                            && !memcmp(&peer->addr.sin_port, &from.sin_port, sizeof(from.sin_port))
+                            && !memcmp(&peer->addr.sin_family, &from.sin_family, sizeof(from.sin_family)))
+                        {
+                            to_peer = peer;
+                            break;
+                        }
+                        peer = peer->next;
+                    }
+                    if (to_peer)
+                    {
+                        sendto(sock, reply_buf,
+                               reply_payload-reply_buf,
+                               0,
+                               (const struct sockaddr *) &(to_peer->addr),
+                               sizeof(to_peer->addr));
+                    }
+                    
+                }
                 break;
+            }
 
             case PTYPE_IHAVE:
                 // TODO
@@ -233,6 +307,7 @@ void process_get(char *chunkfile, char *outputfile) {
                 pack_len = 20;
                 num_chunks = 0;
                 hash_pointer = pack_buf+20;
+                memset(pack_buf, 0, MAXPACKSIZE+1);
             }
         }
         //all chunks exhausted
