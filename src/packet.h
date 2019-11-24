@@ -59,16 +59,16 @@ int parse_packet(char* buf,
 #define MAKE_FIELD(buf, field_name, field_val) \
     do { \
         int val = field_val; \
-        memcpy(&buf[packet_field_info[field_name][1]], \
+        memcpy(&buf[packet_field_info[field_name][0]], \
                &val, \
-               packet_field_info[field_name][0]);\
+               packet_field_info[field_name][1]);\
     } while (0)
 
 #define EXTRACT_FIELD(buf, field_name, field_ptr) \
     do { \
         memcpy(field_ptr, \
-               &buf[packet_field_info[field_name][1]], \
-               packet_field_info[field_name][0]);\
+               &buf[packet_field_info[field_name][0]], \
+               packet_field_info[field_name][1]);\
     } while (0)
 
 

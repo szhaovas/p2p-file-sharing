@@ -24,6 +24,8 @@
 #define MAXPACKSIZE 1500
 
 bt_config_t config;
+LinkedList* owned_chunks;
+int sock;
 
 void peer_run(bt_config_t *config);
 int read_chunk_file(char* chunk_file, LinkedList* chunk_list);
@@ -86,7 +88,7 @@ int read_chunk_file(char* chunk_file, LinkedList* chunk_list)
         }
         hex2binary(hash_str, SHA1_HASH_SIZE*2, chunk->hash);
         add_item(chunk_list, chunk);
-        printf("chunk %hu ", chunk->id);
+        printf("chunk #%hu ", chunk->id);
         print_hex((char *) chunk->hash, SHA1_HASH_SIZE);
         printf("\n");
      }
@@ -114,6 +116,7 @@ void process_inbound_udp(int sock) {
     uint16_t magic_no, header_len, packet_len;
     uint32_t seq_no, ack_no;
     char* payload;
+    print_hex(buf, BUFLEN);
     parse_packet(buf,
                  &magic_no,
                  &version,
@@ -196,12 +199,6 @@ void process_get(char *chunkfile, char *outputfile) {
         uint16_t head_len = htons(16);
         memcpy(pack_buf+4, &head_len, 2);
 
-        int sockfd;
-        if ((sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
-            perror("socket creation failed");
-            exit(EXIT_FAILURE);
-        }
-
         //assume head_len
         uint16_t pack_len = 20;
         uint8_t num_chunks = 0;
@@ -223,10 +220,12 @@ void process_get(char *chunkfile, char *outputfile) {
                 //send to all peers
                 bt_peer_t *peer = config.peers;
                 while (peer != NULL) {
-                    if (peer->id == config.identity) continue;
-                    sendto(sockfd, pack_buf, MAXPACKSIZE, 0,
-                           (const struct sockaddr *) &(peer->addr),
-                           sizeof(peer->addr));
+                    if (peer->id == config.identity) // FIXME
+                    {
+                        sendto(sock, pack_buf, MAXPACKSIZE, 0,
+                        (const struct sockaddr *) &(peer->addr),
+                        sizeof(peer->addr));
+                    }
                     peer = peer->next;
                 }
 
@@ -241,14 +240,16 @@ void process_get(char *chunkfile, char *outputfile) {
         pack_len = htons(pack_len);
         memcpy(pack_buf+6, &pack_len, 2);
         memcpy(pack_buf+16, &num_chunks, 1);
-
+        pack_len = ntohs(pack_len);
         //send to peers
         bt_peer_t *peer = config.peers;
         while (peer != NULL) {
-            if (peer->id == config.identity) continue;
-            sendto(sockfd, pack_buf, pack_len, 0,
-                   (const struct sockaddr *) &(peer->addr),
-                   sizeof(peer->addr));
+            if (peer->id == config.identity) // FIXME
+            {
+                sendto(sock, pack_buf, pack_len, 0,
+                       (const struct sockaddr *) &(peer->addr),
+                       sizeof(peer->addr));
+            }
             peer = peer->next;
         }
     }
@@ -269,10 +270,16 @@ void handle_user_input(char *line, void *cbdata) {
 
 
 void peer_run(bt_config_t *config) {
-    int sock;
     struct sockaddr_in myaddr;
     fd_set readfds;
     struct user_iobuf *userbuf;
+    
+    owned_chunks = (LinkedList *) malloc(sizeof(LinkedList));
+    if (read_chunk_file(config->has_chunk_file, owned_chunks) < 0)
+    {
+        perror("peer_run could not read has_chunk_file");
+        exit(-1);
+    }
 
     if ((userbuf = create_userbuf()) == NULL) {
         perror("peer_run could not allocate userbuf");
