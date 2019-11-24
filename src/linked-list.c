@@ -30,6 +30,27 @@ void init_list(LinkedList* list)
 
 
 /**
+ * Malloc a new list.
+ */
+LinkedList* new_list()
+{
+    return (LinkedList *) malloc(sizeof(LinkedList));
+}
+
+
+
+/**
+ * Delete a list.
+ */
+void delete_list(LinkedList* list)
+{
+    assert(list->__references == 0 && list->size == 0);
+    free(list);
+}
+
+
+
+/**
  * Add an item, pointed to by |item|, to a linked list.
  */
 Node* add_item(LinkedList* list, void* item)

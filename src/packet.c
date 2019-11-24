@@ -90,4 +90,36 @@ int parse_packet(char* buf,
     return magic_no == MAGIC_NUMBER && version == VERSION;
 }
 
+LinkedList* make_ihave_packets(LinkedList *hashes)
+{
+    LinkedList* packets = new_list();
+    int num_packets = hashes->size / MAX_NUM_HASHES + 1;
+    for (int i = 0; i < num_packets; i++)
+    {
+        // Allocate buffer for this packet
+        char *pac = (char *) malloc(MAX_PACKET_LEN);
+        memset(pac, '\0', sizeof(*pac));
+        
+        // Make generic header (packet_len specific to this packet)
+        uint8_t num_hash = hashes->size - i * MAX_NUM_HASHES;
+        uint16_t packet_len = HEADER_LEN + HASH_WITH_PADDING + num_hash * SHA1_HASH_SIZE;
+        make_header(pac, PTYPE_IHAVE, HEADER_LEN, packet_len, FILED_N_A, FILED_N_A);
+        
+        // Manually construct packet's payload
+        char *payload_start, *payload;
+        payload_start = payload = pac + HEADER_LEN;
+        *payload = num_hash;
+        payload += HASH_WITH_PADDING;
+        ITER_LOOP(it, hashes)
+        {
+            char* hash = (char *) iter_get_item(it);
+            memcpy(payload, hash, SHA1_HASH_SIZE);
+            payload += SHA1_HASH_SIZE;
+            iter_drop_curr(it);
+        }
+        ITER_END(it);
+        
+        add_item(packets, pac);
+    }
+    return packets;
 }

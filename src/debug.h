@@ -27,6 +27,7 @@ extern unsigned int debug;
 #define DEBUG_SOCKETS   0x04    // DBTEXT:  Debug socket operations
 #define DEBUG_PROCESSES 0x08    // DBTEXT:  Debug processes (fork/reap/etc)
 #define DEBUG_SPIFFY    0x10    // DBTEXT:  Debug the spiffy sending code
+#define DEBUG_IN_WHOHAS 0x20    // DBTEXT:  Debug inbound WHOHAS packets
 
 #define DEBUG_ALL  0xffffffff
 

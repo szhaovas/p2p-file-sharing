@@ -76,6 +76,7 @@ int parse_packet(char* buf,
                  char** payload);
 
 
+LinkedList* make_ihave_packets(LinkedList *hashes);
 
 
 #endif /* packet_h */

@@ -21,8 +21,6 @@
 #include "packet.h"
 #include "linked-list.h"
 
-#define MAXPACKSIZE 1500
-
 bt_config_t config;
 LinkedList* owned_chunks;
 int sock;
@@ -116,95 +114,72 @@ bt_peer_t* find_peer_with_addr(bt_peer_t* peer, struct sockaddr_in* addr)
 
 
 void process_inbound_udp(int sock) {
-#define BUFLEN 1500
     struct sockaddr_in from;
     socklen_t fromlen;
-    char buf[BUFLEN];
+    char buf[MAX_PACKET_LEN];
 
     fromlen = sizeof(from);
-    spiffy_recvfrom(sock, buf, BUFLEN, 0, (struct sockaddr *) &from, &fromlen);
+    spiffy_recvfrom(sock, buf, MAX_PACKET_LEN, 0, (struct sockaddr *) &from, &fromlen);
 
-    printf("PROCESS_INBOUND_UDP SKELETON -- replace!\n"
-           "Incoming message from %s:%d\n%s\n\n",
+    printf("Incoming message from %s:%d\n%s\n\n",
            inet_ntoa(from.sin_addr),
            ntohs(from.sin_port),
            buf);
-    uint8_t version, packet_type;
-    uint16_t magic_no, header_len, packet_len;
+    
+    uint8_t packet_type;
+    uint16_t header_len, packet_len;
     uint32_t seq_no, ack_no;
     char* payload;
-    print_hex(buf, BUFLEN);
     if (parse_packet(buf, &packet_type, &header_len, &packet_len, &seq_no, &ack_no, &payload))
     {
         switch (packet_type)
         {
             case PTYPE_WHOHAS:
             {
-                LinkedList* i_have = (LinkedList*) malloc(sizeof(LinkedList));
-                init_list(i_have);
-                uint8_t num_hash = 0;
-                memcpy(&num_hash, payload, 1);
-                payload += 4; // FIXME: use constant
+                LinkedList* matched_hash = new_list();
+                uint8_t num_hash;
+                EXTRACT_FIELD(buf, P_NHASH, &num_hash);
+                payload += HASH_WITH_PADDING;
                 for (int i = 0; i < num_hash; i++)
                 {
-                    char hash[SHA1_HASH_SIZE];
-                    memcpy(hash, payload, SHA1_HASH_SIZE);
-                    printf("Looking for ");
+                    // We don't malloc for the current hash; just store a payload ptr
+                    char* hash = payload;
+                    DPRINTF(DEBUG_IN_WHOHAS, "Looking for ");
                     print_hex(hash, SHA1_HASH_SIZE);
+                    
                     ITER_LOOP(it, owned_chunks)
                     {
                         chunk_t* chunk = (chunk_t *) iter_get_item(it);
-                        printf("Comparing with ");
-                        print_hex(chunk->hash, SHA1_HASH_SIZE);
-                        if (!strncmp(hash, (char*) chunk->hash, SHA1_HASH_SIZE))
+                        DPRINTF(DEBUG_IN_WHOHAS, "Comparing with ");
+                        print_hex((char*) chunk->hash, SHA1_HASH_SIZE);
+                        if (!memcmp(hash, chunk->hash, SHA1_HASH_SIZE))
                         {
-                            add_item(i_have, chunk);
+                            add_item(matched_hash, hash);
                         }
                     }
                     ITER_END(it);
                 }
-                if (i_have->size)
+                if (matched_hash->size)
                 {
-                    char reply_buf[BUFLEN];
-                    memset(reply_buf, '\0', BUFLEN);
-                    char* reply_payload, *reply_payload_start;
-                    reply_payload = reply_buf + HEAD_LEN_NORMAL;
-                    reply_payload_start = reply_payload;
-                    uint8_t num_hash = i_have->size;
-                    *reply_payload = num_hash;
-                    reply_payload += 4; // FIXME: use a constant
-                    ITER_LOOP(it, i_have)
-                    {
-                        chunk_t* chunk = (chunk_t *) iter_get_item(it);
-                        memcpy(reply_payload, (char*) chunk->hash, SHA1_HASH_SIZE);
-                        reply_payload += SHA1_HASH_SIZE;
-                    }
-                    ITER_END(it);
-                    
-                    make_packet(reply_buf,
-                                PTYPE_IHAVE,
-                                HEAD_LEN_NORMAL,
-                                reply_payload-reply_buf,
-                                FILED_N_A,
-                                FILED_N_A,
-                                reply_payload_start,
-                                reply_payload-reply_payload_start);
-                    
+                    LinkedList* packets = make_ihave_packets(matched_hash);
                     bt_peer_t* to_peer = find_peer_with_addr(config.peers, &from);
-                    {
-                        {
-                        }
-                    }
                     if (to_peer)
                     {
-                        sendto(sock, reply_buf,
-                               reply_payload-reply_buf,
-                               0,
-                               (const struct sockaddr *) &(to_peer->addr),
-                               sizeof(to_peer->addr));
+                        ITER_LOOP(it, packets)
+                        {
+                            char* pac = (char*) iter_get_item(it);
+                            uint16_t packet_len;
+                            EXTRACT_FIELD(pac, P_PKLEN, &packet_len);
+                            sendto(sock, pac, packet_len, 0,
+                                   (const struct sockaddr *) &(to_peer->addr),
+                                   sizeof(to_peer->addr));
+                            free(iter_drop_curr(it));
+                        }
+                        ITER_END(it);
                     }
-                    
+                    delete_list(packets);
                 }
+                delete_list(matched_hash);
                 break;
             }
 
@@ -259,8 +234,8 @@ void process_get(char *chunkfile, char *outputfile) {
         }
 
         //construct and send WHOHAS packets
-        char *pack_buf = (char *) malloc(MAXPACKSIZE+1);
-        memset(pack_buf, 0, MAXPACKSIZE+1);
+        char *pack_buf = (char *) malloc(MAX_PACKET_LEN+1);
+        memset(pack_buf, 0, MAX_PACKET_LEN+1);
 
         //add all fields in header except for pack_len and num_chunks
         uint16_t magic = htons(3752);
@@ -285,7 +260,7 @@ void process_get(char *chunkfile, char *outputfile) {
             head = head->next;
 
             //if cannot fit in one packet
-            if (hash_pointer >= (pack_buf + MAXPACKSIZE)) {
+            if (hash_pointer >= (pack_buf + MAX_PACKET_LEN)) {
                 //complete or modify header
                 pack_len = htons(pack_len);
                 memcpy(pack_buf+6, &pack_len, 2);
@@ -296,7 +271,7 @@ void process_get(char *chunkfile, char *outputfile) {
                 while (peer != NULL) {
                     if (peer->id == config.identity) // FIXME
                     {
-                        sendto(sock, pack_buf, MAXPACKSIZE, 0,
+                        sendto(sock, pack_buf, MAX_PACKET_LEN, 0,
                         (const struct sockaddr *) &(peer->addr),
                         sizeof(peer->addr));
                     }
@@ -307,7 +282,7 @@ void process_get(char *chunkfile, char *outputfile) {
                 pack_len = 20;
                 num_chunks = 0;
                 hash_pointer = pack_buf+20;
-                memset(pack_buf, 0, MAXPACKSIZE+1);
+                memset(pack_buf+20, 0, MAX_PACKET_LEN+1);
             }
         }
         //all chunks exhausted

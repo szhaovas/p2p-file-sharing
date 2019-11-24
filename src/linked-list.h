@@ -23,7 +23,9 @@ typedef struct {
 } LinkedList;
 
 
-void init_list(LinkedList* list);
+LinkedList* new_list(void);
+
+void delete_list(LinkedList* list);
 
 Node* add_item(LinkedList* list, void* item);
 
