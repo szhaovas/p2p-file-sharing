@@ -117,16 +117,7 @@ void process_inbound_udp(int sock) {
     uint32_t seq_no, ack_no;
     char* payload;
     print_hex(buf, BUFLEN);
-    parse_packet(buf,
-                 &magic_no,
-                 &version,
-                 &packet_type,
-                 &header_len,
-                 &packet_len,
-                 &seq_no,
-                 &ack_no,
-                 &payload);
-    if (magic_no == MAGIC_NUMBER && version == VERSION)
+    if (parse_packet(buf, &packet_type, &header_len, &packet_len, &seq_no, &ack_no, &payload))
     {
         switch (packet_type)
         {
