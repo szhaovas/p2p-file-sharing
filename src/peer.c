@@ -97,6 +97,23 @@ int read_chunk_file(char* chunk_file, LinkedList* chunk_list)
  }
 
 
+bt_peer_t* find_peer_with_addr(bt_peer_t* peer, struct sockaddr_in* addr)
+{
+    bt_peer_t* found = NULL;
+    while (peer)
+    {
+        if (!memcmp(&peer->addr.sin_addr, &addr->sin_addr, sizeof(addr->sin_addr))
+            && !memcmp(&peer->addr.sin_port, &addr->sin_port, sizeof(addr->sin_port))
+            && !memcmp(&peer->addr.sin_family, &addr->sin_family, sizeof(addr->sin_family)))
+        {
+            found = peer;
+            break;
+        }
+        peer = peer->next;
+    }
+    return found;
+}
+
 
 void process_inbound_udp(int sock) {
 #define BUFLEN 1500
@@ -173,18 +190,10 @@ void process_inbound_udp(int sock) {
                                 reply_payload_start,
                                 reply_payload-reply_payload_start);
                     
-                    bt_peer_t* peer = config.peers;
-                    bt_peer_t* to_peer = NULL;
-                    while (peer)
+                    bt_peer_t* to_peer = find_peer_with_addr(config.peers, &from);
                     {
-                        if (!memcmp(&peer->addr.sin_addr, &from.sin_addr, sizeof(from.sin_addr))
-                            && !memcmp(&peer->addr.sin_port, &from.sin_port, sizeof(from.sin_port))
-                            && !memcmp(&peer->addr.sin_family, &from.sin_family, sizeof(from.sin_family)))
                         {
-                            to_peer = peer;
-                            break;
                         }
-                        peer = peer->next;
                     }
                     if (to_peer)
                     {
