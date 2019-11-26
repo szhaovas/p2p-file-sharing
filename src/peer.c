@@ -21,12 +21,19 @@
 #include "packet.h"
 #include "linked-list.h"
 
+
+#define MAGIC_NUMBER 3752
+#define VERSION 1
+
+
 bt_config_t config;
 LinkedList* owned_chunks;
 int sock;
 
-void peer_run(bt_config_t *config);
+
+void peer_run(bt_config_t* config);
 int read_chunk_file(char* chunk_file, LinkedList* chunk_list);
+
 
 typedef struct chunk_s {
     uint16_t id;
@@ -36,11 +43,13 @@ typedef struct chunk_s {
 typedef struct chunk_i {
     short id;
     uint8_t hash[SHA1_HASH_SIZE];
-    struct chunk_i *next;
+    struct chunk_i* next;
 } chunk_info;
 typedef struct chunk_i chunk_info;
 
-int main(int argc, char **argv) {
+
+
+int main(int argc, char* *argv) {
 
     bt_init(&config, argc, argv);
 
@@ -67,7 +76,7 @@ int main(int argc, char **argv) {
 
 int read_chunk_file(char* chunk_file, LinkedList* chunk_list)
 {
-    FILE * fp;
+    FILE*  fp;
     ssize_t read;
     fp = fopen(chunk_file, "r");
     if (fp == NULL)
@@ -113,6 +122,13 @@ bt_peer_t* find_peer_with_addr(bt_peer_t* peer, struct sockaddr_in* addr)
 }
 
 
+void make_generic_header(char* packet)
+{
+    set_magic_number(packet, MAGIC_NUMBER);
+    set_version(packet, VERSION);
+}
+
+
 void process_inbound_udp(int sock) {
     struct sockaddr_in from;
     socklen_t fromlen;
@@ -126,60 +142,64 @@ void process_inbound_udp(int sock) {
            ntohs(from.sin_port),
            buf);
     
-    uint8_t packet_type;
-    uint16_t header_len, packet_len;
-    uint32_t seq_no, ack_no;
-    char* payload;
-    if (parse_packet(buf, &packet_type, &header_len, &packet_len, &seq_no, &ack_no, &payload))
+    uint16_t magic_no = get_magic_no(buf);
+    uint8_t version = get_version(buf);
+    uint8_t packet_type = get_packet_type(buf);
+    
+//    uint32_t seq_no = get_seq_no(buf);
+//    uint32_t ack_no = get_ack_no(buf);
+//    char* payload = get_payload(buf);
+    if (magic_no == MAGIC_NUMBER && version == VERSION)
     {
         switch (packet_type)
         {
             case PTYPE_WHOHAS:
             {
-                LinkedList* matched_hash = new_list();
-                uint8_t num_hash;
-                EXTRACT_FIELD(buf, P_NHASH, &num_hash);
-                payload += HASH_WITH_PADDING;
-                for (int i = 0; i < num_hash; i++)
+                LinkedList* hashes = get_hashes(buf);
+                LinkedList* matched_hashes = new_list();
+                ITER_LOOP(hashes_it, hashes)
                 {
-                    // We don't malloc for the current hash; just store a payload ptr
-                    char* hash = payload;
+                    char* hash = (char *) iter_get_item(hashes_it);
                     DPRINTF(DEBUG_IN_WHOHAS, "Looking for ");
                     print_hex(hash, SHA1_HASH_SIZE);
                     
-                    ITER_LOOP(it, owned_chunks)
+                    ITER_LOOP(owned_chunks_it, owned_chunks)
                     {
-                        chunk_t* chunk = (chunk_t *) iter_get_item(it);
+                        chunk_t* chunk = (chunk_t *) iter_get_item(owned_chunks_it);
                         DPRINTF(DEBUG_IN_WHOHAS, "Comparing with ");
-                        print_hex((char*) chunk->hash, SHA1_HASH_SIZE);
+                        print_hex((char *) chunk->hash, SHA1_HASH_SIZE);
                         if (!memcmp(hash, chunk->hash, SHA1_HASH_SIZE))
                         {
-                            add_item(matched_hash, hash);
+                            add_item(matched_hashes, hash);
                         }
                     }
-                    ITER_END(it);
+                    ITER_END(owned_chunks_it);
                 }
-                if (matched_hash->size)
+                ITER_END(hashes_it);
+                delete_list(hashes);
+                
+                if (matched_hashes->size)
                 {
-                    LinkedList* packets = make_ihave_packets(matched_hash);
+                    LinkedList* packets = make_hash_packets(&matched_hashes);
                     bt_peer_t* to_peer = find_peer_with_addr(config.peers, &from);
                     if (to_peer)
                     {
-                        ITER_LOOP(it, packets)
+                        ITER_LOOP(packets_it, packets)
                         {
-                            char* pac = (char*) iter_get_item(it);
-                            uint16_t packet_len;
-                            EXTRACT_FIELD(pac, P_PKLEN, &packet_len);
-                            sendto(sock, pac, packet_len, 0,
+                            char* packet = (char*) iter_get_item(packets_it);
+                            make_generic_header(packet);
+                            set_packet_type(packet, PTYPE_IHAVE);
+                            uint16_t packet_len = get_packet_len(packet);
+                            sendto(sock, packet, packet_len, 0,
                                    (const struct sockaddr *) &(to_peer->addr),
                                    sizeof(to_peer->addr));
-                            free(iter_drop_curr(it));
+                            free(iter_drop_curr(packets_it));
                         }
-                        ITER_END(it);
+                        ITER_END(packets_it);
                     }
-                    delete_list(packets);
+                    delete_empty_list(packets);
                 }
-                delete_list(matched_hash);
+                delete_list(matched_hashes);
                 break;
             }
 
@@ -210,8 +230,8 @@ void process_inbound_udp(int sock) {
     }
 }
 
-void process_get(char *chunkfile, char *outputfile) {
-    FILE *chunkFile;
+void process_get(char* chunkfile, char* outputfile) {
+    FILE* chunkFile;
     //id 2 bytes
     //blank space 1 byte
     //hash SHA1_HASH_SIZE*2
@@ -224,9 +244,9 @@ void process_get(char *chunkfile, char *outputfile) {
         perror("cannot open chunkfile");
     } else {
         //build a linked list of wanted chunks
-        chunk_info *head = NULL;
+        chunk_info* head = NULL;
         while (fgets(line, sizeof(line), chunkFile) != NULL) {
-            chunk_info *chk = (chunk_info *) malloc(sizeof(chunk_info));;
+            chunk_info* chk = (chunk_info *) malloc(sizeof(chunk_info));;
             chk->id = (short) strtol(strtok(line, delim), NULL, 10);
             hex2binary(strtok(NULL, delim), SHA1_HASH_SIZE*2, chk->hash);
             chk->next = head;
@@ -234,7 +254,7 @@ void process_get(char *chunkfile, char *outputfile) {
         }
 
         //construct and send WHOHAS packets
-        char *pack_buf = (char *) malloc(MAX_PACKET_LEN+1);
+        char* pack_buf = (char *) malloc(MAX_PACKET_LEN+1);
         memset(pack_buf, 0, MAX_PACKET_LEN+1);
 
         //add all fields in header except for pack_len and num_chunks
@@ -251,7 +271,7 @@ void process_get(char *chunkfile, char *outputfile) {
         //assume head_len
         uint16_t pack_len = 20;
         uint8_t num_chunks = 0;
-        char *hash_pointer = pack_buf+20;
+        char* hash_pointer = pack_buf+20;
         while (head != NULL) {
             memcpy(hash_pointer, head->hash, SHA1_HASH_SIZE);
             hash_pointer += 20;
@@ -267,7 +287,7 @@ void process_get(char *chunkfile, char *outputfile) {
                 memcpy(pack_buf+16, &num_chunks, 1);
 
                 //send to all peers
-                bt_peer_t *peer = config.peers;
+                bt_peer_t* peer = config.peers;
                 while (peer != NULL) {
                     if (peer->id == config.identity) // FIXME
                     {
@@ -292,7 +312,7 @@ void process_get(char *chunkfile, char *outputfile) {
         memcpy(pack_buf+16, &num_chunks, 1);
         pack_len = ntohs(pack_len);
         //send to peers
-        bt_peer_t *peer = config.peers;
+        bt_peer_t* peer = config.peers;
         while (peer != NULL) {
             if (peer->id == config.identity) // FIXME
             {
@@ -305,7 +325,7 @@ void process_get(char *chunkfile, char *outputfile) {
     }
 }
 
-void handle_user_input(char *line, void *cbdata) {
+void handle_user_input(char* line, void* cbdata) {
     char chunkf[128], outf[128];
 
     bzero(chunkf, sizeof(chunkf));
@@ -319,10 +339,10 @@ void handle_user_input(char *line, void *cbdata) {
 }
 
 
-void peer_run(bt_config_t *config) {
+void peer_run(bt_config_t* config) {
     struct sockaddr_in myaddr;
     fd_set readfds;
-    struct user_iobuf *userbuf;
+    struct user_iobuf* userbuf;
     
     owned_chunks = (LinkedList *) malloc(sizeof(LinkedList));
     if (read_chunk_file(config->has_chunk_file, owned_chunks) < 0)
@@ -351,7 +371,7 @@ void peer_run(bt_config_t *config) {
         exit(-1);
     }
 
-    spiffy_init(config->identity, (struct sockaddr *)&myaddr, sizeof(myaddr));
+    spiffy_init(config->identity, (struct sockaddr *) &myaddr, sizeof(myaddr));
 
     while (1) {
         int nfds;
