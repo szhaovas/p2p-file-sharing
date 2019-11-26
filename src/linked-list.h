@@ -27,11 +27,15 @@ LinkedList* new_list(void);
 
 void delete_list(LinkedList* list);
 
+void delete_empty_list(LinkedList* list);
+
 Node* add_item(LinkedList* list, void* item);
 
 Node* find_item(LinkedList* list, void* item);
 
 void* drop_node(LinkedList* list, Node* node);
+
+void* drop_head(LinkedList* list);
 
 void* find_and_drop_item(LinkedList* list, void* item);
 

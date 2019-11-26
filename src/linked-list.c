@@ -34,20 +34,35 @@ void init_list(LinkedList* list)
  */
 LinkedList* new_list()
 {
-    return (LinkedList *) malloc(sizeof(LinkedList));
+    LinkedList* list = (LinkedList *) malloc(sizeof(LinkedList));
+    init_list(list);
+    return list;
 }
 
 
 
 /**
- * Delete a list.
+ * Delete an empty list.
  */
-void delete_list(LinkedList* list)
+void delete_empty_list(LinkedList* list)
 {
     assert(list->__references == 0 && list->size == 0);
     free(list);
 }
 
+/**
+ Delete a possibly non-empty list. Does not free | item | field.
+ */
+void delete_list(LinkedList* list)
+{
+    assert(list->__references == 0);
+    ITER_LOOP(i, list)
+    {
+        iter_drop_curr(i);
+    }
+    ITER_END(i);
+    delete_empty_list(list);
+}
 
 
 /**
@@ -78,6 +93,18 @@ Node* add_item(LinkedList* list, void* item)
     list->size += 1;
     list->__id_gen += 1;
     return node;
+}
+
+
+/**
+ Drop the head node from a list.
+ */
+void* drop_head(LinkedList* list)
+{
+    Node* valid_head = list->head;
+    while (!valid_head->__valid)
+        valid_head = valid_head->next;
+    return drop_node(list, valid_head);
 }
 
 
