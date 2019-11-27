@@ -49,13 +49,11 @@ char* list_to_str(LinkedList* list, char* buf);
  
      LinkedList* list;
      // Adding items to |list| ...
-     Iterator_LinkedList* it;
-     for (it = iter(list); !iter_empty(it); it = iter_next(it))
+     ITER_LOOP(it, list)
      {
         // iter_get, iter_add, iter_drop_curr, etc.
      }
-     iter_clean(it);
- 
+     ITER_END(it);
 */
 
 typedef struct {
