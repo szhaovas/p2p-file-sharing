@@ -32,6 +32,7 @@
 #include <inttypes.h>
 
 #define SHA1_HASH_SIZE 20
+#define SHA1_HASH_STR_SIZE (SHA1_HASH_SIZE*2)
 
 /* Hash size in 32-bit words */
 #define SHA1_HASH_WORDS 5

@@ -5,13 +5,25 @@
 #include <assert.h>
 #include <math.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <arpa/inet.h>
 #include "packet.h"
 #include "sha.h"
+#include "chunk.h" // binarytohex
 
+/* Packet Type Strings */
+const char* PACKET_TYPE_STRINGS[NUM_PACKET_TYPES] = {
+    "WHOHAS",
+    "IHAVE",
+    "GET",
+    "DATA",
+    "ACK",
+    "DENIED"
+};
 
+#define PACKET_TYPE_STRING_MAX_LEN 6
 
 // Index into |packet_field_info| array
 #define P_MAGIC 0
@@ -39,7 +51,6 @@ int packet_field_info [8][2] = {
     {6, 2},  // 4. Total Packet Length   [2 B]
     {8, 4},  // 5. Sequence Number       [4 B]
     {12, 4}, // 6. Acknowledgment Number [4 B]
-    {16, 1}, // 7. Number of hashes      [1 B]
 };
 
 
@@ -134,11 +145,11 @@ uint32_t get_seq_no(char* packet)
 uint32_t get_ack_no(char* packet)
 {   return get_field(packet, P_ACKNO);   }
 
-LinkedList* get_hashes(char* packet)
+LinkedList* get_hashes(char* payload)
 {
     LinkedList* hashes = new_list();
-    uint8_t num_hashes = get_num_hashes(packet);
-    char* hash_ptr = packet + HEADER_LEN + NHASH_WITH_PADDING;
+    uint8_t num_hashes = *payload;
+    char* hash_ptr = payload + NHASH_WITH_PADDING;
     for (uint8_t i = 0; i < num_hashes; i++)
     {
         add_item(hashes, hash_ptr);
@@ -171,7 +182,7 @@ LinkedList* make_hash_packets(LinkedList** hashes_ptr)
         // Construct hash payload
         uint8_t num_hashes = fmin(hashes->size, MAX_NUM_HASHES);
         char* payload_start, *payload;
-        payload_start = payload = packet + HEADER_LEN;
+        payload_start = payload = get_payload(packet);
         *payload = num_hashes;
         payload += NHASH_WITH_PADDING;
         for (uint8_t j = 0; j < num_hashes; j++)
@@ -191,4 +202,39 @@ LinkedList* make_hash_packets(LinkedList** hashes_ptr)
     delete_empty_list(hashes);
     *hashes_ptr = hashes_recycle;
     return packets;
+}
+
+
+
+
+size_t print_packet_header_to_str(char* packet, char* str)
+{
+    char* str_start = str;
+    str += sprintf(str, "------HEADER---------\n");
+    str += sprintf(str, "Magic number: %hu\n", get_magic_no(packet));
+    str += sprintf(str, "Version:      %d\n", get_version(packet));
+    str += sprintf(str, "Type:         %s\n", PACKET_TYPE_STRINGS[get_packet_type(packet)]);
+    str += sprintf(str, "Header len:   %hu\n", get_header_len(packet));
+    str += sprintf(str, "Packet len:   %hu\n", get_packet_len(packet));
+    str += sprintf(str, "------PAYLOAD--------\n");
+    return str - str_start;
+}
+
+size_t print_hash_payload_to_str(char* packet, char* str)
+{
+    char* str_start = str;
+    char hash[SHA1_HASH_STR_SIZE+1];
+    char* payload = get_payload(packet);
+    uint8_t num_hashes = *payload;
+    payload += NHASH_WITH_PADDING;
+    str += sprintf(str, "Number of hashes:  %d\n", num_hashes);
+    for (uint8_t i = 0; i < num_hashes; i++)
+    {
+        binary2hex((uint8_t*) payload, SHA1_HASH_SIZE, hash);
+        str += sprintf(str, "Hash #%d:  %s\n", i, hash);
+        payload += SHA1_HASH_SIZE;
+    }
+    str += sprintf(str, "======================\n");
+    size_t bytes = str - str_start;
+    return bytes;
 }

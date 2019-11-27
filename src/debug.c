@@ -61,21 +61,19 @@ int main() {
 #endif
 
 
-void print_hex(char* str, int max)
+void print_hex(int level, char* str, int max)
 {
-    
-    for (int i = 0; i < max; i++)
+    extern unsigned int debug;
+    if (debug & level)
     {
-        if (str[i] == '\0')
+        for (int i = 0; i < max; i++)
         {
-            printf("00 ");
-        }
-        else
-        {
-            printf("%02x ", str[i] & 0xff);
+            if (str[i] == '\0')
+                printf("00");
+            else
+                printf("%02x", str[i] & 0xff);
         }
     }
-    printf("\n");
 }
 
 /* Packet debugging utilities */

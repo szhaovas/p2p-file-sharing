@@ -7,15 +7,18 @@
 
 #include "linked-list.h"
 
+
+#define FILED_NA (-1)
+#define MAX_PACKET_LEN 1500
+
+/* Packet Types */
 #define PTYPE_WHOHAS 0
 #define PTYPE_IHAVE  1
 #define PTYPE_GET    2
 #define PTYPE_DATA   3
 #define PTYPE_ACK    4
 #define PTYPE_DENIED 5
-
-#define FILED_NA (-1)
-#define MAX_PACKET_LEN 1500
+#define NUM_PACKET_TYPES 6
 
 
 void set_magic_number(char* packet, uint16_t magic_no);
@@ -35,6 +38,8 @@ LinkedList* get_hashes(char* packet);
 char* get_payload(char* packet);
 
 LinkedList* make_hash_packets(LinkedList** hashes_ptr);
+size_t print_packet_header_to_str(char* packet, char* str);
+size_t print_hash_payload_to_str(char* packet, char* str);
 
 
 #endif /* packet_h */
