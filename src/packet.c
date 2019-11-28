@@ -9,9 +9,12 @@
 #include <stdlib.h>
 #include <string.h>
 #include <arpa/inet.h>
+#include "debug.h"
 #include "packet.h"
 #include "sha.h"
 #include "chunk.h" // binarytohex
+#include "peer.h"
+#include "spiffy.h"
 
 /* Packet Type Strings */
 const char* PACKET_TYPE_STRINGS[NUM_PACKET_TYPES] = {
@@ -166,13 +169,13 @@ char* get_payload(char* packet)
 /**
  Make a (new) list of packets with hash payload and a partially filled header.
  */
-LinkedList* make_hash_packets(LinkedList** hashes_ptr)
+LinkedList* make_hash_packets(LinkedList** chunks_ptr)
 {
-    LinkedList* hashes = *hashes_ptr;
-    LinkedList* hashes_recycle = new_list(); // Recycle bin for temporarily holding processed hashes
+    LinkedList* chunks = *chunks_ptr;
+    LinkedList* recycle = new_list(); // Recycle bin to temporarily hold processed chunks
     LinkedList* packets = new_list();
-    int total_hashes = hashes->size;
-    int num_packets = (int) ceil( (double) hashes->size / MAX_NUM_HASHES );
+    int total_hashes = chunks->size;
+    int num_packets = (int) ceil( (double) chunks->size / MAX_NUM_HASHES );
     for (int i = 0; i < num_packets; i++)
     {
         // Allocate buffer for this packet
@@ -180,17 +183,17 @@ LinkedList* make_hash_packets(LinkedList** hashes_ptr)
         memset(packet, '\0', sizeof(*packet));
         
         // Construct hash payload
-        uint8_t num_hashes = fmin(hashes->size, MAX_NUM_HASHES);
+        uint8_t num_hashes = fmin(chunks->size, MAX_NUM_HASHES);
         char* payload_start, *payload;
         payload_start = payload = get_payload(packet);
         *payload = num_hashes;
         payload += NHASH_WITH_PADDING;
         for (uint8_t j = 0; j < num_hashes; j++)
         {
-            char* hash = drop_head(hashes);
-            memcpy(payload, hash, SHA1_HASH_SIZE);
+            chunk_t* chunk = drop_head(chunks);
+            memcpy(payload, chunk->hash, SHA1_HASH_SIZE);
             payload += SHA1_HASH_SIZE;
-            add_item(hashes_recycle, hash); // Move the processed hash to recycle bin
+            add_item(recycle, chunk); // Move the processed hash to recycle bin
         }
         
         // Construct partial header
@@ -198,12 +201,11 @@ LinkedList* make_hash_packets(LinkedList** hashes_ptr)
         set_packet_len(packet, (uint16_t) (HEADER_LEN + payload - payload_start));
         add_item(packets, packet);
     }
-    assert(hashes->size == 0 && hashes_recycle->size == total_hashes);
-    delete_empty_list(hashes);
-    *hashes_ptr = hashes_recycle;
+    assert(chunks->size == 0 && recycle->size == total_hashes);
+    delete_empty_list(chunks);
+    *chunks_ptr = recycle;
     return packets;
 }
-
 
 
 
@@ -219,6 +221,8 @@ size_t print_packet_header_to_str(char* packet, char* str)
     str += sprintf(str, "------PAYLOAD--------\n");
     return str - str_start;
 }
+
+
 
 size_t print_hash_payload_to_str(char* packet, char* str)
 {
@@ -237,4 +241,29 @@ size_t print_hash_payload_to_str(char* packet, char* str)
     str += sprintf(str, "======================\n");
     size_t bytes = str - str_start;
     return bytes;
+}
+
+
+void print_packet_header(int debug, char* packet)
+{
+    char str[MAX_PACKET_LEN*100];
+    print_packet_header_to_str(packet, str);
+    DPRINTF(debug, "%s", str);
+}
+void print_hash_payload(int debug, char* packet)
+{
+    char str[MAX_PACKET_LEN*100];
+    print_hash_payload_to_str(packet, str);
+    DPRINTF(debug, "%s", str);
+}
+
+
+ssize_t send_packet(int sock, char* packet, const struct sockaddr_in* addr)
+{
+    return spiffy_sendto(sock,
+                         packet,
+                         get_packet_len(packet),
+                         0,
+                         (const struct sockaddr*) addr,
+                         sizeof(*addr));
 }

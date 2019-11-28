@@ -12,6 +12,7 @@
 #define MAX_PACKET_LEN 1500
 
 /* Packet Types */
+// Exposure intended for peer-proto.c only
 #define PTYPE_WHOHAS 0
 #define PTYPE_IHAVE  1
 #define PTYPE_GET    2
@@ -37,9 +38,10 @@ uint32_t get_ack_no(char* packet);
 LinkedList* get_hashes(char* packet);
 char* get_payload(char* packet);
 
-LinkedList* make_hash_packets(LinkedList** hashes_ptr);
-size_t print_packet_header_to_str(char* packet, char* str);
-size_t print_hash_payload_to_str(char* packet, char* str);
+LinkedList* make_hash_packets(LinkedList** chunks_ptr);
+void print_packet_header(int debug, char* packet);
+void print_hash_payload(int debug, char* packet);
+ssize_t send_packet(int sock, char* packet, const struct sockaddr_in* addr);
 
 
 #endif /* packet_h */

@@ -20,7 +20,7 @@
 #include "sha.h"
 #include "packet.h"
 #include "linked-list.h"
-#include "peer-proto.h"
+#include "peer-proto.h" // handle_packet()
 #include "peer.h"
 
 
@@ -60,9 +60,8 @@ int main(int argc, char* *argv) {
 
 bt_peer_t* find_peer_with_addr(struct sockaddr_in* addr)
 {
-    bt_peer_t* peer = config.peers;
     bt_peer_t* found = NULL;
-    while (peer)
+    for (bt_peer_t* peer = config.peers; peer; peer = peer->next)
     {
         if (!memcmp(&peer->addr.sin_addr, &addr->sin_addr, sizeof(addr->sin_addr))
             && !memcmp(&peer->addr.sin_port, &addr->sin_port, sizeof(addr->sin_port))
@@ -71,7 +70,6 @@ bt_peer_t* find_peer_with_addr(struct sockaddr_in* addr)
             found = peer;
             break;
         }
-        peer = peer->next;
     }
     return found;
 }
@@ -88,7 +86,7 @@ int read_chunk_file(char* chunk_file, LinkedList* chunk_list)
     while (1)
     {
         chunk_t* chunk = malloc(sizeof(chunk));
-        char hash_str[SHA1_HASH_SIZE*2];
+        char hash_str[SHA1_HASH_STR_SIZE+1];
         read = fscanf(fp, "%hu %40c", &chunk->id, hash_str);
         if (read == EOF) break;
         else if (read != 2)
@@ -101,7 +99,7 @@ int read_chunk_file(char* chunk_file, LinkedList* chunk_list)
      }
     fclose(fp);
     return 0;
- }
+}
 
 
 void process_inbound_udp(int sock) {
@@ -117,106 +115,78 @@ void process_inbound_udp(int sock) {
            ntohs(from.sin_port),
            buf);
     
-    handle_packet(buf, owned_chunks, &from, fromlen, sock);
+    handle_packet(buf, owned_chunks, &from, fromlen, sock); // handled by peer-proto.c
 }
 
 
 void process_get(char* chunkfile, char* outputfile) {
-    DPRINTF(DEBUG_GET, "Processing GET command\n");
-    
-    FILE* chunkFile;
-    //id 2 bytes
-    //blank space 1 byte
-    //hash SHA1_HASH_SIZE*2
-    //1 byte for NULL terminator
-    char line[SHA1_HASH_SIZE*2 + 4];
-    char delim[] = " ";
-
-    chunkFile = fopen(chunkfile, "r");
-    if (chunkFile == NULL) {
+    DPRINTF(DEBUG_CMD_GET, "Processing GET command\n");
+    LinkedList* missing_chunks = new_list();
+    if (read_chunk_file(chunkfile, missing_chunks) < 0)
+    {
         perror("process_get could not open chunkfile");
-    } else {
-        //build a linked list of wanted chunks
-        chunk_info* head = NULL;
-        while (fgets(line, sizeof(line), chunkFile) != NULL) {
-            chunk_info* chk = (chunk_info *) malloc(sizeof(chunk_info));;
-            chk->id = (short) strtol(strtok(line, delim), NULL, 10);
-            hex2binary(strtok(NULL, delim), SHA1_HASH_SIZE*2, chk->hash);
-            chk->next = head;
-            head = chk;
-        }
-
-        // Construct WHOHAS packets
-        char* pack_buf = (char *) malloc(MAX_PACKET_LEN+1);
-        memset(pack_buf, 0, MAX_PACKET_LEN+1);
-
-        // Add all fields in header except for pack_len and num_chunks
-        uint16_t magic = htons(3752);
-        memcpy(pack_buf, &magic, 2);
-        char version = 1;
-        memcpy(pack_buf+2, &version, 1);
-        char type = 0;
-        memcpy(pack_buf+3, &type, 1);
-        // Assume head_len
-        uint16_t head_len = htons(16);
-        memcpy(pack_buf+4, &head_len, 2);
-
-        // Assume head_len
-        uint16_t pack_len = 20;
-        uint8_t num_chunks = 0;
-        char* hash_pointer = pack_buf+20;
-        while (head != NULL) {
-            memcpy(hash_pointer, head->hash, SHA1_HASH_SIZE);
-            hash_pointer += 20;
-            pack_len += 20;
-            num_chunks++;
-            head = head->next;
-
-            //if cannot fit in one packet
-            if (hash_pointer >= (pack_buf + MAX_PACKET_LEN)) {
-                //complete or modify header
-                pack_len = htons(pack_len);
-                memcpy(pack_buf+6, &pack_len, 2);
-                memcpy(pack_buf+16, &num_chunks, 1);
-
-                //send to all peers
-                bt_peer_t* peer = config.peers;
-                while (peer != NULL) {
-                    if (peer->id == config.identity) // FIXME
-                    {
-                        sendto(sock, pack_buf, MAX_PACKET_LEN, 0,
-                        (const struct sockaddr *) &(peer->addr),
-                        sizeof(peer->addr));
-                    }
-                    peer = peer->next;
-                }
-
-                //start new packet
-                pack_len = 20;
-                num_chunks = 0;
-                hash_pointer = pack_buf+20;
-                memset(pack_buf+20, 0, MAX_PACKET_LEN+1);
-            }
-        }
-        //all chunks exhausted
-        //complete or modify header
-        pack_len = htons(pack_len);
-        memcpy(pack_buf+6, &pack_len, 2);
-        memcpy(pack_buf+16, &num_chunks, 1);
-        pack_len = ntohs(pack_len);
-        //send to peers
-        bt_peer_t* peer = config.peers;
-        while (peer != NULL) {
-            if (peer->id == config.identity) // FIXME
+        return;
+    }
+    // Ignore already poccessed chunks in get_chunks
+    ITER_LOOP(missing_chunks_it, missing_chunks)
+    {
+        chunk_t* missing_chunk = (chunk_t*) iter_get_item(missing_chunks_it);
+        int found = 0;
+        ITER_LOOP(owned_chunks_it, owned_chunks)
+        {
+            chunk_t* owned_chunk = (chunk_t*) iter_get_item(owned_chunks_it);
+            if (!memcmp(owned_chunk->hash, missing_chunk->hash, SHA1_HASH_SIZE))
             {
-                sendto(sock, pack_buf, pack_len, 0,
-                       (const struct sockaddr *) &(peer->addr),
-                       sizeof(peer->addr));
+                found = 1;
+                break;
             }
-            peer = peer->next;
+        }
+        ITER_END(owned_chunks_it);
+        if (!found)
+        {
+            DPRINTF(DEBUG_CMD_GET, "Don't have #%hu ", missing_chunk->id);
+            print_hex(DEBUG_CMD_GET, (char*) missing_chunk->hash, SHA1_HASH_SIZE);
+            DPRINTF(DEBUG_CMD_GET, "\n");
+        }
+        else
+        {
+            DPRINTF(DEBUG_CMD_GET, "Already own #%hu ", missing_chunk->id);
+            print_hex(DEBUG_CMD_GET, (char*) missing_chunk->hash, SHA1_HASH_SIZE);
+            DPRINTF(DEBUG_CMD_GET, "\n");
+            free(iter_drop_curr(missing_chunks_it));
         }
     }
+    ITER_END(missing_chunks_it);
+    
+    // Construct WHOHAS packets
+    LinkedList* packets = make_hash_packets(&missing_chunks);
+    ITER_LOOP(packets_it, packets)
+    {
+        char* packet = (char*) iter_get_item(packets_it);
+        // Set fields
+        make_generic_header(packet);
+        set_packet_type(packet, PTYPE_WHOHAS);
+        // Print packet contents
+        print_packet_header(DEBUG_CMD_GET, packet);
+        print_hash_payload(DEBUG_CMD_GET, packet);
+        // Send packet
+        
+        for (bt_peer_t* peer = config.peers; peer; peer = peer->next)
+        {
+            if (peer->id == config.identity) continue;
+            if (send_packet(sock, packet, &peer->addr) < 0)
+            {
+                perror("process_get could not send packet");
+                break;
+            }
+        }
+        free(iter_drop_curr(packets_it));
+    }
+    ITER_END(packets_it);
+    delete_empty_list(packets);
+    // FIXME: return missing_chunks
 }
+
 
 void handle_user_input(char* line, void* cbdata) {
     char chunkf[128], outf[128];
@@ -237,7 +207,7 @@ void peer_run(bt_config_t* config) {
     fd_set readfds;
     struct user_iobuf* userbuf;
     
-    owned_chunks = (LinkedList *) malloc(sizeof(LinkedList));
+    owned_chunks = new_list();
     if (read_chunk_file(config->has_chunk_file, owned_chunks) < 0)
     {
         perror("peer_run could not read has_chunk_file");

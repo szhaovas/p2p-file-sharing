@@ -9,6 +9,9 @@
 #include <netinet/ip.h> // sockaddr_in, socklen_t
 #include "linked-list.h"
 
-void handle_packet(char* packet, LinkedList* owned_chunks, struct sockaddr_in* from, socklen_t fromlen, int sock);
+void handle_packet(char* packet, LinkedList* owned_chunks,
+                   struct sockaddr_in* from, socklen_t fromlen, int sock);
+
+void make_generic_header(char* packet);
 
 #endif /* peer_proto_h */

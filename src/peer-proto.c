@@ -74,12 +74,11 @@ void handle_packet(char* packet, LinkedList* owned_chunks,
 }
 
 
-
 void handle_WHOHAS(PACKET_ARGS)
 {
     LinkedList* hashes = get_hashes(payload);
     // Go through requested hashes and collect hashes this peer owns
-    LinkedList* matched_hashes = new_list();
+    LinkedList* matched_chunks = new_list();
     ITER_LOOP(hashes_it, hashes)
     {
         char* hash = (char *) iter_get_item(hashes_it);
@@ -92,8 +91,9 @@ void handle_WHOHAS(PACKET_ARGS)
             chunk_t* chunk = (chunk_t *) iter_get_item(owned_chunks_it);
             if (!memcmp(hash, chunk->hash, SHA1_HASH_SIZE))
             {
-                DPRINTF(DEBUG_IN_WHOHAS, "Found in chunk #%hu\n", chunk->id);
-                add_item(matched_hashes, hash);
+                DPRINTF(DEBUG_IN_WHOHAS, "Found in owned chunk #%hu\n", chunk->id);
+                add_item(matched_chunks, chunk);
+                // No need to free individual hashes since they were not malloc'ed by get_hashes()
                 iter_drop_curr(hashes_it);
                 break;
             }
@@ -103,48 +103,52 @@ void handle_WHOHAS(PACKET_ARGS)
     ITER_END(hashes_it);
     delete_list(hashes);
     
-    if (matched_hashes->size)
+    if (matched_chunks->size)
     {
-        LinkedList* packets = make_hash_packets(&matched_hashes);
+        LinkedList* packets = make_hash_packets(&matched_chunks);
         bt_peer_t* to_peer = find_peer_with_addr(from);
         if (to_peer)
         {
             ITER_LOOP(packets_it, packets)
             {
                 char* packet = (char*) iter_get_item(packets_it);
+                // Set fields
                 make_generic_header(packet);
                 set_packet_type(packet, PTYPE_IHAVE);
-                char packet_str[MAX_PACKET_LEN*100];
-                char* packet_str_ptr = packet_str;
-                
-                packet_str_ptr += print_packet_header_to_str(packet, packet_str_ptr);
-                packet_str_ptr += print_hash_payload_to_str(packet, packet_str_ptr);
-                DPRINTF(DEBUG_IN_WHOHAS, "%s", packet_str);
-                uint16_t packet_len = get_packet_len(packet);
-                sendto(sock, packet, packet_len, 0,
-                       (const struct sockaddr *) &(to_peer->addr),
-                       sizeof(to_peer->addr));
+                // Print packet
+                print_packet_header(DEBUG_IN_WHOHAS, packet);
+                print_hash_payload(DEBUG_IN_WHOHAS, packet);
+                // Send packet
+                if (send_packet(sock, packet, &to_peer->addr) < 0)
+                {
+                    perror("handle_WHOHAS could not send packet");
+                }
                 free(iter_drop_curr(packets_it));
             }
             ITER_END(packets_it);
         }
         delete_empty_list(packets);
     }
-    delete_list(matched_hashes);
+    // No need to free individual hashes since they were not malloc'ed
+    delete_list(matched_chunks);
 }
 
 
 void handle_IHAVE(PACKET_ARGS)
 {}
 
+
 void handle_GET(PACKET_ARGS)
 {}
+
 
 void handle_DATA(PACKET_ARGS)
 {}
 
+
 void handle_ACK(PACKET_ARGS)
 {}
+
 
 void handle_DENIED(PACKET_ARGS)
 {}
