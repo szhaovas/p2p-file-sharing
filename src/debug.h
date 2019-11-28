@@ -40,6 +40,6 @@ extern "C" {
 }
 #endif
 
-void print_hex(int level, char* str, int max);
+void print_hex(int level, void* hex, int max);
 
 #endif /* _DEBUG_H_ */

@@ -61,8 +61,9 @@ int main() {
 #endif
 
 
-void print_hex(int level, char* str, int max)
+void print_hex(int level, void* hex, int max)
 {
+    char* str = hex;
     extern unsigned int debug;
     if (debug & level)
     {

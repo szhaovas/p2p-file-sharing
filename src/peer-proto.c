@@ -18,7 +18,7 @@
 
 /* Argments to packet handlers */
 #define PACKET_ARGS \
-    uint32_t seq_no, uint32_t ack_no, char* payload, \
+    uint32_t seq_no, uint32_t ack_no, uint8_t* payload, \
     LinkedList* owned_chunks, struct sockaddr_in* from, socklen_t fromlen, int sock
 
 /* Packet handler type */
@@ -47,7 +47,7 @@ packet_handler_t handlers[NUM_PACKET_TYPES] = {
 /**
  Set packet's magic number and version to the implementation-specific numbers.
  */
-void make_generic_header(char* packet)
+void make_generic_header(uint8_t* packet)
 {
     set_magic_number(packet, MAGIC_NUMBER);
     set_version(packet, VERSION);
@@ -57,7 +57,7 @@ void make_generic_header(char* packet)
 /**
  Dispatch a packet to the appropriate handler.
  */
-void handle_packet(char* packet, LinkedList* owned_chunks,
+void handle_packet(uint8_t* packet, LinkedList* owned_chunks,
                    struct sockaddr_in* from, socklen_t fromlen, int sock)
 {
     uint16_t magic_no = get_magic_no(packet);
@@ -68,7 +68,7 @@ void handle_packet(char* packet, LinkedList* owned_chunks,
     {
         uint32_t seq_no = get_seq_no(packet);
         uint32_t ack_no = get_ack_no(packet);
-        char* payload = get_payload(packet);
+        uint8_t* payload = get_payload(packet);
         (*handlers[packet_type])(seq_no, ack_no, payload, owned_chunks, from, fromlen, sock);
     }
 }
@@ -81,7 +81,7 @@ void handle_WHOHAS(PACKET_ARGS)
     LinkedList* matched_chunks = new_list();
     ITER_LOOP(hashes_it, hashes)
     {
-        char* hash = (char *) iter_get_item(hashes_it);
+        uint8_t* hash = (uint8_t *) iter_get_item(hashes_it);
         DPRINTF(DEBUG_IN_WHOHAS, "Looking for ");
         print_hex(DEBUG_IN_WHOHAS, hash, SHA1_HASH_SIZE);
         DPRINTF(DEBUG_IN_WHOHAS, "\n");
@@ -111,7 +111,7 @@ void handle_WHOHAS(PACKET_ARGS)
         {
             ITER_LOOP(packets_it, packets)
             {
-                char* packet = (char*) iter_get_item(packets_it);
+                uint8_t* packet = (uint8_t*) iter_get_item(packets_it);
                 // Set fields
                 make_generic_header(packet);
                 set_packet_type(packet, PTYPE_IHAVE);

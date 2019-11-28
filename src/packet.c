@@ -59,7 +59,7 @@ int packet_field_info [8][2] = {
 
 
 /* Setter helper */
-void set_field(char* packet, int field, uint32_t val)
+void set_field(uint8_t* packet, int field, uint32_t val)
 {
     size_t offset = packet_field_info[field][0];
     size_t size   = packet_field_info[field][1];
@@ -71,7 +71,7 @@ void set_field(char* packet, int field, uint32_t val)
 }
 
 /* Getter helper */
-uint32_t get_field(char* packet, int field)
+uint32_t get_field(uint8_t* packet, int field)
 {
     size_t offset = packet_field_info[field][0];
     size_t size   = packet_field_info[field][1];
@@ -87,72 +87,72 @@ uint32_t get_field(char* packet, int field)
 
 
 /* Private Setters */
-void set_header_len(char* packet, uint16_t header_len)
+void set_header_len(uint8_t* packet, uint16_t header_len)
 {   set_field(packet, P_HDLEN, header_len);    }
 
-void set_packet_len(char* packet, uint16_t packet_len)
+void set_packet_len(uint8_t* packet, uint16_t packet_len)
 {   set_field(packet, P_PKLEN, packet_len);    }
 
-void set_num_hashes(char* packet, uint8_t num_hashes)
+void set_num_hashes(uint8_t* packet, uint8_t num_hashes)
 {   set_field(packet, P_NHASH, num_hashes);    }
 
 
 
 /* Public Setters */
-void set_magic_number(char* packet, uint16_t magic_no)
+void set_magic_number(uint8_t* packet, uint16_t magic_no)
 {   set_field(packet, P_MAGIC, magic_no);   }
 
-void set_version(char* packet, uint8_t version)
+void set_version(uint8_t* packet, uint8_t version)
 {   set_field(packet, P_VERSN, version);   }
 
-void set_packet_type(char* packet, uint8_t packet_type)
+void set_packet_type(uint8_t* packet, uint8_t packet_type)
 {   set_field(packet, P_PTYPE, packet_type);   }
 
-void set_seq_no(char* packet, uint32_t seq_no)
+void set_seq_no(uint8_t* packet, uint32_t seq_no)
 {   set_field(packet, P_SEQNO, seq_no);    }
 
-void set_ack_no(char* packet, uint32_t ack_no)
+void set_ack_no(uint8_t* packet, uint32_t ack_no)
 {   set_field(packet, P_ACKNO, htonl(ack_no));    }
 
-void set_payload(char* packet, char* payload, size_t payload_len)
+void set_payload(uint8_t* packet, uint8_t* payload, size_t payload_len)
 {   memcpy(packet + HEADER_LEN, payload, payload_len);  }
 
 
 
 
 /* Private Getters */
-uint16_t get_header_len(char* packet)
+uint16_t get_header_len(uint8_t* packet)
 {   return get_field(packet, P_HDLEN);    }
 
-uint16_t get_num_hashes(char* packet)
+uint16_t get_num_hashes(uint8_t* packet)
 {   return get_field(packet, P_NHASH);   }
 
 
 
 /* Public Getters */
-uint16_t get_magic_no(char* packet)
+uint16_t get_magic_no(uint8_t* packet)
 {   return get_field(packet, P_MAGIC);   }
 
-uint8_t get_version(char* packet)
+uint8_t get_version(uint8_t* packet)
 {   return get_field(packet, P_VERSN);   }
 
-uint8_t get_packet_type(char* packet)
+uint8_t get_packet_type(uint8_t* packet)
 {   return get_field(packet, P_PTYPE);   }
 
-uint16_t get_packet_len(char* packet)
+uint16_t get_packet_len(uint8_t* packet)
 {   return get_field(packet, P_PKLEN);   }
 
-uint32_t get_seq_no(char* packet)
+uint32_t get_seq_no(uint8_t* packet)
 {   return get_field(packet, P_SEQNO);   }
 
-uint32_t get_ack_no(char* packet)
+uint32_t get_ack_no(uint8_t* packet)
 {   return get_field(packet, P_ACKNO);   }
 
-LinkedList* get_hashes(char* payload)
+LinkedList* get_hashes(uint8_t* payload)
 {
     LinkedList* hashes = new_list();
     uint8_t num_hashes = *payload;
-    char* hash_ptr = payload + NHASH_WITH_PADDING;
+    uint8_t* hash_ptr = payload + NHASH_WITH_PADDING;
     for (uint8_t i = 0; i < num_hashes; i++)
     {
         add_item(hashes, hash_ptr);
@@ -161,7 +161,7 @@ LinkedList* get_hashes(char* payload)
     return hashes;
 }
 
-char* get_payload(char* packet)
+uint8_t* get_payload(uint8_t* packet)
 {   return packet + HEADER_LEN;  }
 
 
@@ -179,12 +179,12 @@ LinkedList* make_hash_packets(LinkedList** chunks_ptr)
     for (int i = 0; i < num_packets; i++)
     {
         // Allocate buffer for this packet
-        char* packet = (char* ) malloc(MAX_PACKET_LEN);
+        uint8_t* packet = (uint8_t*) malloc(MAX_PACKET_LEN);
         memset(packet, '\0', sizeof(*packet));
         
         // Construct hash payload
         uint8_t num_hashes = fmin(chunks->size, MAX_NUM_HASHES);
-        char* payload_start, *payload;
+        uint8_t* payload_start, *payload;
         payload_start = payload = get_payload(packet);
         *payload = num_hashes;
         payload += NHASH_WITH_PADDING;
@@ -209,7 +209,7 @@ LinkedList* make_hash_packets(LinkedList** chunks_ptr)
 
 
 
-size_t print_packet_header_to_str(char* packet, char* str)
+size_t print_packet_header_to_str(uint8_t* packet, char* str)
 {
     char* str_start = str;
     str += sprintf(str, "------HEADER---------\n");
@@ -224,11 +224,11 @@ size_t print_packet_header_to_str(char* packet, char* str)
 
 
 
-size_t print_hash_payload_to_str(char* packet, char* str)
+size_t print_hash_payload_to_str(uint8_t* packet, char* str)
 {
     char* str_start = str;
     char hash[SHA1_HASH_STR_SIZE+1];
-    char* payload = get_payload(packet);
+    uint8_t* payload = get_payload(packet);
     uint8_t num_hashes = *payload;
     payload += NHASH_WITH_PADDING;
     str += sprintf(str, "Number of hashes:  %d\n", num_hashes);
@@ -244,13 +244,13 @@ size_t print_hash_payload_to_str(char* packet, char* str)
 }
 
 
-void print_packet_header(int debug, char* packet)
+void print_packet_header(int debug, uint8_t* packet)
 {
     char str[MAX_PACKET_LEN*100];
     print_packet_header_to_str(packet, str);
     DPRINTF(debug, "%s", str);
 }
-void print_hash_payload(int debug, char* packet)
+void print_hash_payload(int debug, uint8_t* packet)
 {
     char str[MAX_PACKET_LEN*100];
     print_hash_payload_to_str(packet, str);
@@ -258,7 +258,7 @@ void print_hash_payload(int debug, char* packet)
 }
 
 
-ssize_t send_packet(int sock, char* packet, const struct sockaddr_in* addr)
+ssize_t send_packet(int sock, uint8_t* packet, const struct sockaddr_in* addr)
 {
     return spiffy_sendto(sock,
                          packet,

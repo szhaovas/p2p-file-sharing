@@ -105,7 +105,7 @@ int read_chunk_file(char* chunk_file, LinkedList* chunk_list)
 void process_inbound_udp(int sock) {
     struct sockaddr_in from;
     socklen_t fromlen;
-    char buf[MAX_PACKET_LEN];
+    uint8_t buf[MAX_PACKET_LEN];
 
     fromlen = sizeof(from);
     spiffy_recvfrom(sock, buf, MAX_PACKET_LEN, 0, (struct sockaddr *) &from, &fromlen);
@@ -145,13 +145,13 @@ void process_get(char* chunkfile, char* outputfile) {
         if (!found)
         {
             DPRINTF(DEBUG_CMD_GET, "Don't have #%hu ", missing_chunk->id);
-            print_hex(DEBUG_CMD_GET, (char*) missing_chunk->hash, SHA1_HASH_SIZE);
+            print_hex(DEBUG_CMD_GET, missing_chunk->hash, SHA1_HASH_SIZE);
             DPRINTF(DEBUG_CMD_GET, "\n");
         }
         else
         {
             DPRINTF(DEBUG_CMD_GET, "Already own #%hu ", missing_chunk->id);
-            print_hex(DEBUG_CMD_GET, (char*) missing_chunk->hash, SHA1_HASH_SIZE);
+            print_hex(DEBUG_CMD_GET, missing_chunk->hash, SHA1_HASH_SIZE);
             DPRINTF(DEBUG_CMD_GET, "\n");
             free(iter_drop_curr(missing_chunks_it));
         }
@@ -162,7 +162,7 @@ void process_get(char* chunkfile, char* outputfile) {
     LinkedList* packets = make_hash_packets(&missing_chunks);
     ITER_LOOP(packets_it, packets)
     {
-        char* packet = (char*) iter_get_item(packets_it);
+        uint8_t* packet = (uint8_t*) iter_get_item(packets_it);
         // Set fields
         make_generic_header(packet);
         set_packet_type(packet, PTYPE_WHOHAS);
