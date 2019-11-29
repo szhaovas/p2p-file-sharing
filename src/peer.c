@@ -21,7 +21,6 @@
 #include "packet.h"
 #include "linked-list.h"
 #include "peer-proto.h" // handle_packet()
-#include "peer.h"
 
 
 bt_config_t config;
@@ -31,6 +30,7 @@ int sock;
 
 void peer_run(bt_config_t* config);
 int read_chunk_file(char* chunk_file, LinkedList* chunk_list);
+bt_peer_t* find_peer_with_addr(struct sockaddr_in* addr);
 
 
 int main(int argc, char* *argv) {
@@ -128,7 +128,7 @@ void process_get(char* chunkfile, char* outputfile) {
         perror("process_get could not open chunkfile");
         return;
     }
-    // Ignore already poccessed chunks in get_chunks
+    // Drop already owned chunks in missing_chunks
     ITER_LOOP(missing_chunks_it, missing_chunks)
     {
         chunk_t* missing_chunk = (chunk_t*) iter_get_item(missing_chunks_it);
@@ -151,7 +151,7 @@ void process_get(char* chunkfile, char* outputfile) {
         }
         else
         {
-            DPRINTF(DEBUG_CMD_GET, "Already own #%hu ", missing_chunk->id);
+            DPRINTF(DEBUG_CMD_GET, "Already have #%hu ", missing_chunk->id);
             print_hex(DEBUG_CMD_GET, missing_chunk->hash, SHA1_HASH_SIZE);
             DPRINTF(DEBUG_CMD_GET, "\n");
             free(iter_drop_curr(missing_chunks_it));
@@ -178,14 +178,13 @@ void process_get(char* chunkfile, char* outputfile) {
             if (send_packet(sock, packet, &peer->addr) < 0)
             {
                 perror("process_get could not send packet");
-                break;
             }
         }
         free(iter_drop_curr(packets_it));
     }
     ITER_END(packets_it);
     delete_empty_list(packets);
-    // FIXME: return missing_chunks
+    // FIXME: return missing_chunks, or set it to some global var
 }
 
 

@@ -13,8 +13,9 @@
 #include "packet.h"
 #include "sha.h"
 #include "chunk.h" // binarytohex
-#include "peer.h"
+#include "peer-proto.h"
 #include "spiffy.h"
+
 
 /* Packet Type Strings */
 const char* PACKET_TYPE_STRINGS[NUM_PACKET_TYPES] = {

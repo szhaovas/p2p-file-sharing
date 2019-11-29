@@ -9,7 +9,6 @@
 #include "sha.h"
 #include "spiffy.h"
 #include "packet.h"
-#include "peer.h"
 
 
 /* Implementation-specific constants */
@@ -57,8 +56,7 @@ void make_generic_header(uint8_t* packet)
 /**
  Dispatch a packet to the appropriate handler.
  */
-void handle_packet(uint8_t* packet, LinkedList* owned_chunks,
-                   int sock, bt_peer_t* from)
+void handle_packet(uint8_t* packet, LinkedList* owned_chunks, int sock, bt_peer_t* from)
 {
     uint16_t magic_no = get_magic_no(packet);
     uint8_t version = get_version(packet);
@@ -66,10 +64,12 @@ void handle_packet(uint8_t* packet, LinkedList* owned_chunks,
     if (packet_type < NUM_PACKET_TYPES &&
         magic_no == MAGIC_NUMBER && version == VERSION)
     {
-        uint32_t seq_no = get_seq_no(packet);
-        uint32_t ack_no = get_ack_no(packet);
-        uint8_t* payload = get_payload(packet);
-        (*handlers[packet_type])(seq_no, ack_no, payload, owned_chunks, sock, from);
+        (*handlers[packet_type])(get_seq_no(packet),
+                                 get_ack_no(packet),
+                                 get_payload(packet),
+                                 owned_chunks,
+                                 sock,
+                                 from);
     }
 }
 
