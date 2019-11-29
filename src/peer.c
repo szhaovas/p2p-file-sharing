@@ -114,8 +114,9 @@ void process_inbound_udp(int sock) {
            inet_ntoa(from.sin_addr),
            ntohs(from.sin_port),
            buf);
-    
-    handle_packet(buf, owned_chunks, &from, fromlen, sock); // handled by peer-proto.c
+    bt_peer_t* peer = find_peer_with_addr(&from);
+    if (peer)
+        handle_packet(buf, owned_chunks, sock, peer); // handled by peer-proto.c
 }
 
 

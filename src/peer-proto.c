@@ -19,7 +19,7 @@
 /* Argments to packet handlers */
 #define PACKET_ARGS \
     uint32_t seq_no, uint32_t ack_no, uint8_t* payload, \
-    LinkedList* owned_chunks, struct sockaddr_in* from, socklen_t fromlen, int sock
+    LinkedList* owned_chunks, int sock, bt_peer_t* from
 
 /* Packet handler type */
 typedef void (*packet_handler_t)(PACKET_ARGS);
@@ -58,7 +58,7 @@ void make_generic_header(uint8_t* packet)
  Dispatch a packet to the appropriate handler.
  */
 void handle_packet(uint8_t* packet, LinkedList* owned_chunks,
-                   struct sockaddr_in* from, socklen_t fromlen, int sock)
+                   int sock, bt_peer_t* from)
 {
     uint16_t magic_no = get_magic_no(packet);
     uint8_t version = get_version(packet);
@@ -69,7 +69,7 @@ void handle_packet(uint8_t* packet, LinkedList* owned_chunks,
         uint32_t seq_no = get_seq_no(packet);
         uint32_t ack_no = get_ack_no(packet);
         uint8_t* payload = get_payload(packet);
-        (*handlers[packet_type])(seq_no, ack_no, payload, owned_chunks, from, fromlen, sock);
+        (*handlers[packet_type])(seq_no, ack_no, payload, owned_chunks, sock, from);
     }
 }
 
@@ -106,27 +106,23 @@ void handle_WHOHAS(PACKET_ARGS)
     if (matched_chunks->size)
     {
         LinkedList* packets = make_hash_packets(&matched_chunks);
-        bt_peer_t* to_peer = find_peer_with_addr(from);
-        if (to_peer)
+        ITER_LOOP(packets_it, packets)
         {
-            ITER_LOOP(packets_it, packets)
+            uint8_t* packet = (uint8_t*) iter_get_item(packets_it);
+            // Set fields
+            make_generic_header(packet);
+            set_packet_type(packet, PTYPE_IHAVE);
+            // Print packet
+            print_packet_header(DEBUG_IN_WHOHAS, packet);
+            print_hash_payload(DEBUG_IN_WHOHAS, packet);
+            // Send packet
+            if (send_packet(sock, packet, &from->addr) < 0)
             {
-                uint8_t* packet = (uint8_t*) iter_get_item(packets_it);
-                // Set fields
-                make_generic_header(packet);
-                set_packet_type(packet, PTYPE_IHAVE);
-                // Print packet
-                print_packet_header(DEBUG_IN_WHOHAS, packet);
-                print_hash_payload(DEBUG_IN_WHOHAS, packet);
-                // Send packet
-                if (send_packet(sock, packet, &to_peer->addr) < 0)
-                {
-                    perror("handle_WHOHAS could not send packet");
-                }
-                free(iter_drop_curr(packets_it));
+                perror("handle_WHOHAS could not send packet");
             }
-            ITER_END(packets_it);
+            free(iter_drop_curr(packets_it));
         }
+        ITER_END(packets_it);
         delete_empty_list(packets);
     }
     // No need to free individual hashes since they were not malloc'ed
