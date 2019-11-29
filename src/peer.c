@@ -1,8 +1,5 @@
 /*
  * peer.c
- *
- * Skeleton for CMPU-375 programming project #2.
- *
  */
 
 #include <sys/types.h>
