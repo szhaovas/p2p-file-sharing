@@ -47,26 +47,34 @@ const char* PACKET_TYPE_STRINGS[NUM_PACKET_TYPES] = {
 
 
 /* Table of (offset, size) pairs */
+// Keys
+#define OFFSET  0
+#define SIZE    1
+// Size constants
+#define SIZE_8  1
+#define SIZE_16 2
+#define SIZE_32 4
 int packet_field_info [8][2] = {
-    {0, 2},  // 0. Magic Number          [2 B]
-    {2, 1},  // 1. Version Number        [1 B]
-    {3, 1},  // 2. Packet Type           [1 B]
-    {4, 2},  // 3. Header Length         [2 B]
-    {6, 2},  // 4. Total Packet Length   [2 B]
-    {8, 4},  // 5. Sequence Number       [4 B]
-    {12, 4}, // 6. Acknowledgment Number [4 B]
+    {0, SIZE_16},  // 0. Magic Number          [2 B]
+    {2, SIZE_8},   // 1. Version Number        [1 B]
+    {3, SIZE_8},   // 2. Packet Type           [1 B]
+    {4, SIZE_16},  // 3. Header Length         [2 B]
+    {6, SIZE_16},  // 4. Total Packet Length   [2 B]
+    {8, SIZE_32},  // 5. Sequence Number       [4 B]
+    {12,SIZE_32},  // 6. Acknowledgment Number [4 B]
 };
+
 
 
 
 /* Setter helper */
 void set_field(uint8_t* packet, int field, uint32_t val)
 {
-    size_t offset = packet_field_info[field][0];
-    size_t size   = packet_field_info[field][1];
-    if (size == 2)
+    size_t offset = packet_field_info[field][OFFSET];
+    size_t size   = packet_field_info[field][SIZE];
+    if (size == SIZE_16)
         val = htons(val);
-    else if (size == 4)
+    else if (size == SIZE_32)
         val = htonl(val);
     memcpy(&packet[offset], &val, size);
 }
@@ -74,13 +82,13 @@ void set_field(uint8_t* packet, int field, uint32_t val)
 /* Getter helper */
 uint32_t get_field(uint8_t* packet, int field)
 {
-    size_t offset = packet_field_info[field][0];
-    size_t size   = packet_field_info[field][1];
+    size_t offset = packet_field_info[field][OFFSET];
+    size_t size   = packet_field_info[field][SIZE];
     uint32_t val;
     memcpy(&val, &packet[offset], size);
-    if (size == 2)
+    if (size == SIZE_16)
        val = ntohs(val);
-    else if (size == 4)
+    else if (size == SIZE_32)
        val = ntohl(val);
     return val;
 }

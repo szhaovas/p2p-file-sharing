@@ -90,7 +90,6 @@
 		BF34CE3E23898F6C00DABAEB /* bt_parse.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = bt_parse.c; sourceTree = "<group>"; };
 		BF990C09238DFBA700A7E07B /* peer-proto.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "peer-proto.h"; sourceTree = "<group>"; };
 		BF990C0A238DFBA700A7E07B /* peer-proto.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = "peer-proto.c"; sourceTree = "<group>"; };
-		BF990C0C238E026A00A7E07B /* peer.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = peer.h; sourceTree = "<group>"; };
 		BFE645602389903F008D09BB /* client */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = client; sourceTree = BUILT_PRODUCTS_DIR; };
 		BFE6456B23899045008D09BB /* server */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = server; sourceTree = BUILT_PRODUCTS_DIR; };
 		BFE6457623899056008D09BB /* make_chuncks */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = make_chuncks; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -154,7 +153,6 @@
 		BF34CE2623898F6C00DABAEB /* src */ = {
 			isa = PBXGroup;
 			children = (
-				BF990C0C238E026A00A7E07B /* peer.h */,
 				BF34CE3723898F6C00DABAEB /* peer.c */,
 				BF990C09238DFBA700A7E07B /* peer-proto.h */,
 				BF990C0A238DFBA700A7E07B /* peer-proto.c */,
