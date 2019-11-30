@@ -2,6 +2,7 @@
 //  peer-proto.c
 //
 
+#include <assert.h>
 #include <stdlib.h> // malloc(), free()
 #include <string.h> // memcmp()
 #include "peer-proto.h"
@@ -42,6 +43,8 @@ packet_handler_t handlers[NUM_PACKET_TYPES] = {
     handle_DENIED
 };
 
+LinkedList* _missing_chunks;
+int pending_ihave;
 
 /**
  Set packet's magic number and version to the implementation-specific numbers.
@@ -72,6 +75,48 @@ void handle_packet(uint8_t* packet, LinkedList* owned_chunks, int sock, bt_peer_
                                  from);
     }
 }
+
+
+
+
+/**
+ Flood the network with WHOHAS packets containing missing chunks.
+ */
+void flood_WHOHAS(LinkedList* missing_chunks, bt_peer_t* peers, short id, int sock)
+{
+    // Initialize download list and chunks to download
+    _missing_chunks = missing_chunks;
+    pending_ihave = _missing_chunks->size;
+    
+    test_peers(peers); test_chunks(missing_chunks); // DELETE
+    
+    // Construct WHOHAS packets
+    LinkedList* packets = make_hash_packets(&missing_chunks);
+    
+    test_peers(peers); test_chunks(missing_chunks); // DELETE
+    
+    ITER_LOOP(packets_it, packets)
+    {
+        uint8_t* packet = iter_get_item(packets_it);
+        // Set fields
+        make_generic_header(packet);
+        set_packet_type(packet, PTYPE_WHOHAS);
+        // Send packet
+        for (bt_peer_t* peer = peers; peer != NULL; peer = peer->next)
+        {
+            if (peer->id == id) continue;
+            if (send_packet(sock, packet, &peer->addr) < 0)
+            {
+                perror("process_get could not send packet");
+            }
+        }
+        free(iter_drop_curr(packets_it));
+    }
+    ITER_END(packets_it);
+    delete_empty_list(packets);
+}
+
+
 
 
 void handle_WHOHAS(PACKET_ARGS)

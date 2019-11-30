@@ -23,4 +23,5 @@ void handle_packet(uint8_t* packet, LinkedList* owned_chunks,
 
 void make_generic_header(uint8_t* packet);
 
+void flood_WHOHAS(LinkedList* missing_chunks, bt_peer_t* peers, short id, int sock);
 #endif /* peer_proto_h */

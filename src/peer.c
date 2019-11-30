@@ -17,7 +17,7 @@
 #include "sha.h"
 #include "packet.h"
 #include "linked-list.h"
-#include "peer-proto.h" // handle_packet()
+#include "peer-proto.h" // handle_packet(), flood_WHOHAS()
 
 
 bt_config_t config;
@@ -129,6 +129,9 @@ void process_get(char* chunkfile, char* outputfile) {
     ITER_LOOP(missing_chunks_it, missing_chunks)
     {
         chunk_t* missing_chunk = (chunk_t*) iter_get_item(missing_chunks_it);
+        DPRINTF(DEBUG_CMD_GET, "Looking for #%hu ", missing_chunk->id);
+        print_hex(DEBUG_CMD_GET, missing_chunk->hash, SHA1_HASH_SIZE);
+        DPRINTF(DEBUG_CMD_GET, "\n");
         int found = 0;
         ITER_LOOP(owned_chunks_it, owned_chunks)
         {
@@ -155,33 +158,15 @@ void process_get(char* chunkfile, char* outputfile) {
         }
     }
     ITER_END(missing_chunks_it);
-    
-    // Construct WHOHAS packets
-    LinkedList* packets = make_hash_packets(&missing_chunks);
-    ITER_LOOP(packets_it, packets)
+    if (missing_chunks->size > 0)
     {
-        uint8_t* packet = (uint8_t*) iter_get_item(packets_it);
-        // Set fields
-        make_generic_header(packet);
-        set_packet_type(packet, PTYPE_WHOHAS);
-        // Print packet contents
-        print_packet_header(DEBUG_CMD_GET, packet);
-        print_hash_payload(DEBUG_CMD_GET, packet);
-        // Send packet
-        
-        for (bt_peer_t* peer = config.peers; peer; peer = peer->next)
-        {
-            if (peer->id == config.identity) continue;
-            if (send_packet(sock, packet, &peer->addr) < 0)
-            {
-                perror("process_get could not send packet");
-            }
-        }
-        free(iter_drop_curr(packets_it));
+        DPRINTF(DEBUG_CMD_GET, "WHOHAS flooding\n");
+        flood_WHOHAS(missing_chunks, config.peers, config.identity, sock);
     }
-    ITER_END(packets_it);
-    delete_empty_list(packets);
-    // FIXME: return missing_chunks, or set it to some global var
+    else
+    {
+        DPRINTF(DEBUG_CMD_GET, "No need for WHOHAS since already have everything\n");
+    }
 }
 
 
