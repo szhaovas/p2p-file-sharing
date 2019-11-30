@@ -38,6 +38,7 @@ uint32_t get_ack_no(uint8_t* packet);
 LinkedList* get_hashes(uint8_t* packet);
 uint8_t* get_payload(uint8_t* packet);
 
+uint8_t* make_empty_packet(void);
 LinkedList* make_hash_packets(LinkedList** chunks_ptr);
 void print_packet_header(int debug, uint8_t* packet);
 void print_hash_payload(int debug, uint8_t* packet);

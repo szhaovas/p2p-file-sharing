@@ -65,6 +65,12 @@ int header_field_info [8][2] = {
 };
 
 
+/* Declaring privite setters and getters */
+void set_header_len(uint8_t* packet, uint16_t header_len);
+void set_packet_len(uint8_t* packet, uint16_t packet_len);
+void set_num_hashes(uint8_t* packet, uint8_t num_hashes);
+uint16_t get_header_len(uint8_t* packet);
+uint16_t get_num_hashes(uint8_t* packet);
 
 
 /* Setter helper */
@@ -124,8 +130,11 @@ void set_ack_no(uint8_t* packet, uint32_t ack_no)
 {   set_field(packet, P_ACKNO, htonl(ack_no));    }
 
 void set_payload(uint8_t* packet, uint8_t* payload, size_t payload_len)
-{   memcpy(packet + HEADER_LEN, payload, payload_len);  }
-
+{
+    assert(payload_len < MAX_PAYLOAD_LEN);
+    memcpy(packet + get_header_len(packet), payload, payload_len);
+    set_packet_len(packet, get_header_len(packet) + payload_len);
+}
 
 
 
@@ -171,7 +180,16 @@ LinkedList* get_hashes(uint8_t* payload)
 }
 
 uint8_t* get_payload(uint8_t* packet)
-{   return packet + HEADER_LEN;  }
+{   return packet + get_header_len(packet);  }
+
+
+uint8_t* make_empty_packet()
+{
+    uint8_t* packet = malloc(MAX_PACKET_LEN);
+    memset(packet, '\0', MAX_PACKET_LEN);
+    set_header_len(packet, HEADER_LEN);
+    return packet;
+}
 
 
 
@@ -181,6 +199,7 @@ uint8_t* get_payload(uint8_t* packet)
 LinkedList* make_hash_packets(LinkedList** chunks_ptr)
 {
     LinkedList* chunks = *chunks_ptr;
+    assert(chunks->size > 0);
     LinkedList* recycle = new_list(); // Recycle bin to temporarily hold processed chunks
     LinkedList* packets = new_list();
     int total_hashes = chunks->size;
@@ -188,8 +207,7 @@ LinkedList* make_hash_packets(LinkedList** chunks_ptr)
     for (int i = 0; i < num_packets; i++)
     {
         // Allocate buffer for this packet
-        uint8_t* packet = (uint8_t*) malloc(MAX_PACKET_LEN);
-        memset(packet, '\0', sizeof(*packet));
+        uint8_t* packet = make_empty_packet();
         
         // Construct hash payload
         uint8_t num_hashes = fmin(chunks->size, MAX_NUM_HASHES);
@@ -204,10 +222,8 @@ LinkedList* make_hash_packets(LinkedList** chunks_ptr)
             payload += SHA1_HASH_SIZE;
             add_item(recycle, chunk); // Move the processed hash to recycle bin
         }
-        
         // Construct partial header
-        set_header_len(packet, HEADER_LEN);
-        set_packet_len(packet, (uint16_t) (HEADER_LEN + payload - payload_start));
+        set_packet_len(packet, (uint16_t) (get_header_len(packet) + payload - payload_start));
         add_item(packets, packet);
     }
     assert(chunks->size == 0 && recycle->size == total_hashes);
