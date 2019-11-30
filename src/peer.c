@@ -82,7 +82,7 @@ int read_chunk_file(char* chunk_file, LinkedList* chunk_list)
     
     while (1)
     {
-        chunk_t* chunk = malloc(sizeof(chunk));
+        chunk_t* chunk = malloc(sizeof(chunk_t));
         char hash_str[SHA1_HASH_STR_SIZE+1];
         read = fscanf(fp, "%hu %40c", &chunk->id, hash_str);
         if (read == EOF) break;
