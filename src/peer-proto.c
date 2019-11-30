@@ -126,14 +126,14 @@ void handle_WHOHAS(PACKET_ARGS)
     LinkedList* matched_chunks = new_list();
     ITER_LOOP(hashes_it, hashes)
     {
-        uint8_t* hash = (uint8_t *) iter_get_item(hashes_it);
+        uint8_t* hash = iter_get_item(hashes_it);
         DPRINTF(DEBUG_IN_WHOHAS, "Looking for ");
         print_hex(DEBUG_IN_WHOHAS, hash, SHA1_HASH_SIZE);
         DPRINTF(DEBUG_IN_WHOHAS, "\n");
         
         ITER_LOOP(owned_chunks_it, owned_chunks)
         {
-            chunk_t* chunk = (chunk_t *) iter_get_item(owned_chunks_it);
+            chunk_t* chunk = iter_get_item(owned_chunks_it);
             if (!memcmp(hash, chunk->hash, SHA1_HASH_SIZE))
             {
                 DPRINTF(DEBUG_IN_WHOHAS, "Found in owned chunk #%hu\n", chunk->id);
@@ -153,7 +153,7 @@ void handle_WHOHAS(PACKET_ARGS)
         LinkedList* packets = make_hash_packets(&matched_chunks);
         ITER_LOOP(packets_it, packets)
         {
-            uint8_t* packet = (uint8_t*) iter_get_item(packets_it);
+            uint8_t* packet = iter_get_item(packets_it);
             // Set fields
             make_generic_header(packet);
             set_packet_type(packet, PTYPE_IHAVE);

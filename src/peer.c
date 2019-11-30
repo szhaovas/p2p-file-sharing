@@ -128,14 +128,14 @@ void process_get(char* chunkfile, char* outputfile) {
     // Drop already owned chunks in missing_chunks
     ITER_LOOP(missing_chunks_it, missing_chunks)
     {
-        chunk_t* missing_chunk = (chunk_t*) iter_get_item(missing_chunks_it);
+        chunk_t* missing_chunk = iter_get_item(missing_chunks_it);
         DPRINTF(DEBUG_CMD_GET, "Looking for #%hu ", missing_chunk->id);
         print_hex(DEBUG_CMD_GET, missing_chunk->hash, SHA1_HASH_SIZE);
         DPRINTF(DEBUG_CMD_GET, "\n");
         int found = 0;
         ITER_LOOP(owned_chunks_it, owned_chunks)
         {
-            chunk_t* owned_chunk = (chunk_t*) iter_get_item(owned_chunks_it);
+            chunk_t* owned_chunk = iter_get_item(owned_chunks_it);
             if (!memcmp(owned_chunk->hash, missing_chunk->hash, SHA1_HASH_SIZE))
             {
                 found = 1;
