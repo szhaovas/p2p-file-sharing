@@ -88,12 +88,8 @@ void flood_WHOHAS(LinkedList* missing_chunks, bt_peer_t* peers, short id, int so
     _missing_chunks = missing_chunks;
     pending_ihave = _missing_chunks->size;
     
-    test_peers(peers); test_chunks(missing_chunks); // DELETE
-    
     // Construct WHOHAS packets
     LinkedList* packets = make_hash_packets(&missing_chunks);
-    
-    test_peers(peers); test_chunks(missing_chunks); // DELETE
     
     ITER_LOOP(packets_it, packets)
     {
