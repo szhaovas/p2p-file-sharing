@@ -17,6 +17,7 @@ typedef struct _chunk_t {
     uint8_t hash[SHA1_HASH_SIZE];
 } chunk_t;
 
+#define NUM_PACKET_TYPES 6
 
 void handle_packet(uint8_t* packet, LinkedList* owned_chunks,
                    int sock, bt_peer_t* to_peer);

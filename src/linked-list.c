@@ -95,16 +95,34 @@ Node* add_item(LinkedList* list, void* item)
     return node;
 }
 
+Node* get_valid_head(LinkedList* list)
+{
+    assert(list->size > 0);
+    Node* valid_head = list->head;
+    while (valid_head && !valid_head->__valid)
+        valid_head = valid_head->next;
+    assert(valid_head);
+    return valid_head;
+}
 
 /**
  Drop the head node from a list.
  */
 void* drop_head(LinkedList* list)
 {
-    Node* valid_head = list->head;
-    while (!valid_head->__valid)
-        valid_head = valid_head->next;
-    return drop_node(list, valid_head);
+    Node* valid_head = get_valid_head(list);
+    void* head_item = drop_node(list, valid_head);
+    return head_item;
+}
+
+
+/**
+ Get the head item  from a list.
+ */
+void* get_head(LinkedList* list)
+{
+    Node* valid_head = get_valid_head(list);
+    return valid_head->item;
 }
 
 

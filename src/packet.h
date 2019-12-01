@@ -12,7 +12,6 @@
 #define MAX_PACKET_LEN 1500
 
 /* Packet Types */
-// Exposure intended for peer-proto.c only
 #define PTYPE_WHOHAS 0
 #define PTYPE_IHAVE  1
 #define PTYPE_GET    2
