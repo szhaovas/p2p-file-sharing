@@ -17,17 +17,30 @@
 #include "sha.h"
 #include "packet.h"
 #include "linked-list.h"
-#include "peer-proto.h" // handle_packet(), flood_WHOHAS()
+#include "peer.h"
 
 
-bt_config_t config;
-LinkedList* owned_chunks;
-int sock;
+packet_handler_t handlers[NUM_PACKET_TYPES] = {
+    handle_WHOHAS,
+    handle_IHAVE,
+    handle_GET,
+    handle_DATA,
+    handle_ACK,
+    handle_DENIED
+};
 
 
+/* Forward declarations */
 void peer_run(bt_config_t* config);
 int read_chunk_file(char* chunk_file, LinkedList* chunk_list);
 bt_peer_t* find_peer_with_addr(struct sockaddr_in* addr);
+void handle_packet(uint8_t* packet, LinkedList* owned_chunks, int sock, bt_peer_t* from);
+
+
+/* Global variables */
+bt_config_t config;
+LinkedList* owned_chunks;
+int sock;
 
 
 int main(int argc, char* *argv) {
@@ -96,6 +109,37 @@ int read_chunk_file(char* chunk_file, LinkedList* chunk_list)
      }
     fclose(fp);
     return 0;
+}
+
+
+/**
+ Set packet's magic number and version to the implementation-specific numbers.
+ */
+void make_generic_header(uint8_t* packet)
+{
+    set_magic_number(packet, MAGIC_NUMBER);
+    set_version(packet, VERSION);
+}
+
+
+/**
+ Dispatch a packet to the appropriate handler.
+ */
+void handle_packet(uint8_t* packet, LinkedList* owned_chunks, int sock, bt_peer_t* from)
+{
+    uint16_t magic_no = get_magic_no(packet);
+    uint8_t version = get_version(packet);
+    uint8_t packet_type = get_packet_type(packet);
+    if (packet_type < NUM_PACKET_TYPES &&
+        magic_no == MAGIC_NUMBER && version == VERSION)
+    {
+        (*handlers[packet_type])(get_seq_no(packet),
+                                 get_ack_no(packet),
+                                 get_payload(packet),
+                                 owned_chunks,
+                                 sock,
+                                 from);
+    }
 }
 
 

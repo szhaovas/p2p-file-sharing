@@ -12,8 +12,8 @@
 #include "debug.h"
 #include "packet.h"
 #include "sha.h"
-#include "chunk.h" // binarytohex
-#include "peer-proto.h"
+#include "chunk.h" // binarytohex()
+#include "peer.h"
 #include "spiffy.h"
 
 
