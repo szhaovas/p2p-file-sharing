@@ -13,13 +13,15 @@
 /* Implementation-specific constants */
 #define MAGIC_NUMBER 3752
 #define VERSION 1
-
+#define CHUNK_SIZE 524288
 
 
 /* Chunk struct */
 typedef struct _chunk_t {
     uint16_t id;
     uint8_t hash[SHA1_HASH_SIZE];
+    char hash_str[SHA1_HASH_STR_SIZE+1];
+    char hash_str_short[SHA1_HASH_STR_SIZE+1];
 } chunk_t;
 
 
@@ -28,8 +30,8 @@ typedef struct _chunk_t {
 
 /* Argments for packet handlers */
 #define PACKET_ARGS \
-    uint32_t seq_no, uint32_t ack_no, uint8_t* payload, \
-    LinkedList* owned_chunks, int sock, bt_peer_t* from
+    uint32_t seq_no, uint32_t ack_no, uint8_t* payload, uint16_t payload_len, uint8_t* packet, \
+    LinkedList* owned_chunks, int sock, bt_peer_t* from, bt_config_t* config
 
 /* Packet handler type */
 typedef void (*packet_handler_t)(PACKET_ARGS);
@@ -50,7 +52,8 @@ extern packet_handler_t handlers[NUM_PACKET_TYPES];
 
 /* Public functions */
 void make_generic_header(uint8_t* packet);
-
+void get_short_hash_str(const char* hash_str, char* hash_str_short);
+void print_short_hash_str(int level, uint8_t* hash);
 
 
 #endif /* peer_h */

@@ -40,10 +40,8 @@ const char* PACKET_TYPE_STRINGS[NUM_PACKET_TYPES] = {
 #define P_ACKNO 6
 #define P_NHASH 7
 
-#define HEADER_LEN 16
-#define NHASH_WITH_PADDING 4
-#define MAX_NUM_HASHES 74
-#define MAX_PAYLOAD_LEN (MAX_PACKET_LEN - HEADER_LEN)
+
+
 
 
 
@@ -128,11 +126,11 @@ void set_seq_no(uint8_t* packet, uint32_t seq_no)
 {   set_field(packet, P_SEQNO, seq_no);    }
 
 void set_ack_no(uint8_t* packet, uint32_t ack_no)
-{   set_field(packet, P_ACKNO, htonl(ack_no));    }
+{   set_field(packet, P_ACKNO, ack_no);    }
 
 void set_payload(uint8_t* packet, uint8_t* payload, size_t payload_len)
 {
-    assert(payload_len < MAX_PAYLOAD_LEN);
+    assert(payload_len <= MAX_PAYLOAD_LEN);
     memcpy(packet + get_header_len(packet), payload, payload_len);
     set_packet_len(packet, get_header_len(packet) + payload_len);
 }
@@ -183,12 +181,16 @@ LinkedList* get_hashes(uint8_t* payload)
 uint8_t* get_payload(uint8_t* packet)
 {   return packet + get_header_len(packet);  }
 
+uint16_t get_payload_len(uint8_t* packet)
+{   return get_packet_len(packet) - get_header_len(packet);   }
+
 
 uint8_t* make_empty_packet()
 {
     uint8_t* packet = malloc(MAX_PACKET_LEN);
     memset(packet, '\0', MAX_PACKET_LEN);
     set_header_len(packet, HEADER_LEN);
+    set_packet_len(packet, HEADER_LEN);
     return packet;
 }
 
@@ -244,6 +246,14 @@ size_t print_packet_header_to_str(uint8_t* packet, char* str)
     str += sprintf(str, "Type:         %s\n", PACKET_TYPE_STRINGS[get_packet_type(packet)]);
     str += sprintf(str, "Header len:   %hu\n", get_header_len(packet));
     str += sprintf(str, "Packet len:   %hu\n", get_packet_len(packet));
+    if (get_packet_type(packet) == PTYPE_ACK)
+    {
+    str += sprintf(str, "ACK NO:       %d\n", get_ack_no(packet));
+    }
+    else if (get_packet_type(packet) == PTYPE_DATA)
+    {
+    str += sprintf(str, "SEQ NO:       %d\n", get_seq_no(packet));
+    }
     str += sprintf(str, "------PAYLOAD--------\n");
     return str - str_start;
 }
@@ -253,15 +263,19 @@ size_t print_packet_header_to_str(uint8_t* packet, char* str)
 size_t print_hash_payload_to_str(uint8_t* packet, char* str)
 {
     char* str_start = str;
-    char hash[SHA1_HASH_STR_SIZE+1];
+    char hash_str[SHA1_HASH_STR_SIZE+1];
+    char hash_str_short[SHA1_HASH_STR_SIZE+1];
     uint8_t* payload = get_payload(packet);
     uint8_t num_hashes = *payload;
     payload += NHASH_WITH_PADDING;
     str += sprintf(str, "Number of hashes:  %d\n", num_hashes);
     for (uint8_t i = 0; i < num_hashes; i++)
     {
-        binary2hex((uint8_t*) payload, SHA1_HASH_SIZE, hash);
-        str += sprintf(str, "Hash #%d:  %s\n", i, hash);
+        memset(hash_str, '\0', SHA1_HASH_STR_SIZE+1);
+        memset(hash_str_short, '\0', SHA1_HASH_STR_SIZE+1);
+        binary2hex((uint8_t*) payload, SHA1_HASH_SIZE, hash_str);
+        get_short_hash_str(hash_str, hash_str_short);
+        str += sprintf(str, "Hash #%d:  %s\n", i, hash_str_short);
         payload += SHA1_HASH_SIZE;
     }
     str += sprintf(str, "======================\n");

@@ -29,6 +29,8 @@ extern unsigned int debug;
 #define DEBUG_SPIFFY    0x10    // DBTEXT:  Debug the spiffy sending code
 #define DEBUG_CMD_GET   0x20    // DBTEXT:  Debug GET commands
 #define DEBUG_IN_WHOHAS 0x30    // DBTEXT:  Debug inbound WHOHAS packets
+#define DEBUG_LEECHER   0x40    // DBTEXT:  Debug leecher
+#define DEBUG_SEEDER    0x80    // DBTEXT:  Debug seeder
 
 #define DEBUG_ALL  0xffffffff
 

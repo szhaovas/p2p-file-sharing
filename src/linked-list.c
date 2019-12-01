@@ -117,13 +117,19 @@ void* drop_head(LinkedList* list)
 
 
 /**
- Get the head item  from a list.
+ Get the head item from a list.
  */
 void* get_head(LinkedList* list)
 {
-    Node* valid_head = get_valid_head(list);
-    return valid_head->item;
+    return get_head_node(list)->item;
 }
+
+
+/**
+Get the head node from a list.
+*/
+Node* get_head_node(LinkedList* list)
+{   return get_valid_head(list);    }
 
 
 /**

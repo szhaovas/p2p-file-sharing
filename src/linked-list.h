@@ -39,6 +39,8 @@ void* drop_head(LinkedList* list);
 
 void* get_head(LinkedList* list);
 
+Node* get_head_node(LinkedList* list);
+
 void* find_and_drop_item(LinkedList* list, void* item);
 
 char* list_to_str(LinkedList* list, char* buf);

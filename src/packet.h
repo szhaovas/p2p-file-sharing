@@ -9,6 +9,11 @@
 
 
 #define MAX_PACKET_LEN 1500
+#define HEADER_LEN 16
+#define MAX_PAYLOAD_LEN (MAX_PACKET_LEN - HEADER_LEN)
+#define NHASH_WITH_PADDING 4
+#define MAX_NUM_HASHES 74
+
 
 /* Packet Types */
 #define PTYPE_WHOHAS 0
@@ -35,6 +40,7 @@ uint32_t get_seq_no(uint8_t* packet);
 uint32_t get_ack_no(uint8_t* packet);
 LinkedList* get_hashes(uint8_t* packet);
 uint8_t* get_payload(uint8_t* packet);
+uint16_t get_payload_len(uint8_t* packet);
 
 uint8_t* make_empty_packet(void);
 LinkedList* make_hash_packets(LinkedList** chunks_ptr);

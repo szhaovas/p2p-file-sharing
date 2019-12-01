@@ -18,6 +18,8 @@
 #include "packet.h"
 #include "linked-list.h"
 #include "peer.h"
+#include "peer-seeder.h"
+#include "peer-leecher.h"
 
 
 packet_handler_t handlers[NUM_PACKET_TYPES] = {
@@ -85,28 +87,58 @@ bt_peer_t* find_peer_with_addr(struct sockaddr_in* addr)
 }
 
 
+void get_short_hash_str(const char* hash_str, char* hash_str_short)
+{
+#define LEADING_LEN 3
+#define TRAILING_LEN 2
+    memcpy(hash_str_short, hash_str, LEADING_LEN);
+    hash_str_short += LEADING_LEN;
+    hash_str_short += sprintf(hash_str_short, "...");
+    memcpy(hash_str_short, hash_str + SHA1_HASH_STR_SIZE - TRAILING_LEN, TRAILING_LEN);
+}
+
+
+void print_short_hash_str(int level, uint8_t* hash)
+{
+    char hash_str[SHA1_HASH_STR_SIZE+1];
+    char hash_str_short[SHA1_HASH_STR_SIZE+1];
+    memset(hash_str, '\0', SHA1_HASH_STR_SIZE+1);
+    memset(hash_str_short, '\0', SHA1_HASH_STR_SIZE+1);
+    binary2hex(hash, SHA1_HASH_SIZE, hash_str);
+    get_short_hash_str(hash_str, hash_str_short);
+    DPRINTF(level, "%s", hash_str_short);
+    
+}
+
+
 int read_chunk_file(char* chunk_file, LinkedList* chunk_list)
 {
+    int rc = 0;
     FILE* fp;
     ssize_t read;
     fp = fopen(chunk_file, "r");
-    if (fp == NULL)
-        return -1;
-    
+    if (fp == NULL) return -1;
     while (1)
     {
         chunk_t* chunk = malloc(sizeof(chunk_t));
-        char hash_str[SHA1_HASH_STR_SIZE+1];
-        read = fscanf(fp, "%hu %40c", &chunk->id, hash_str);
-        if (read == EOF) break;
+        memset(chunk, '\0', sizeof(chunk_t));
+        read = fscanf(fp, "%hu %40c", &chunk->id, chunk->hash_str);
+        if (read == EOF)
+        {
+            free(chunk);
+            rc = 0;
+            break;
+        }
         else if (read != 2)
         {
-            fclose(fp);
-            return -1;
+            free(chunk);
+            rc = -1;
+            break;
         }
-        hex2binary(hash_str, SHA1_HASH_SIZE*2, chunk->hash);
+        hex2binary(chunk->hash_str, SHA1_HASH_SIZE*2, chunk->hash);
+        get_short_hash_str(chunk->hash_str, chunk->hash_str_short);
         add_item(chunk_list, chunk);
-     }
+    }
     fclose(fp);
     return 0;
 }
@@ -133,12 +165,17 @@ void handle_packet(uint8_t* packet, LinkedList* owned_chunks, int sock, bt_peer_
     if (packet_type < NUM_PACKET_TYPES &&
         magic_no == MAGIC_NUMBER && version == VERSION)
     {
+        DPRINTF(DEBUG_ALL, "Got a new packet\n");
+        print_packet_header(DEBUG_ALL, packet);
         (*handlers[packet_type])(get_seq_no(packet),
                                  get_ack_no(packet),
                                  get_payload(packet),
+                                 get_payload_len(packet),
+                                 packet,
                                  owned_chunks,
                                  sock,
-                                 from);
+                                 from,
+                                 &config);
     }
 }
 
@@ -157,7 +194,7 @@ void process_inbound_udp(int sock) {
            buf);
     bt_peer_t* peer = find_peer_with_addr(&from);
     if (peer)
-        handle_packet(buf, owned_chunks, sock, peer); // handled by peer-proto.c
+        handle_packet(buf, owned_chunks, sock, peer);
 }
 
 
@@ -173,9 +210,9 @@ void process_get(char* chunkfile, char* outputfile) {
     ITER_LOOP(missing_chunks_it, missing_chunks)
     {
         chunk_t* missing_chunk = iter_get_item(missing_chunks_it);
-        DPRINTF(DEBUG_CMD_GET, "Looking for #%hu ", missing_chunk->id);
-        print_hex(DEBUG_CMD_GET, missing_chunk->hash, SHA1_HASH_SIZE);
-        DPRINTF(DEBUG_CMD_GET, "\n");
+        DPRINTF(DEBUG_CMD_GET, "Looking for #%hu %s\n",
+                missing_chunk->id,
+                missing_chunk->hash_str_short);
         int found = 0;
         ITER_LOOP(owned_chunks_it, owned_chunks)
         {
@@ -189,16 +226,15 @@ void process_get(char* chunkfile, char* outputfile) {
         ITER_END(owned_chunks_it);
         if (!found)
         {
-            DPRINTF(DEBUG_CMD_GET, "Don't have #%hu ", missing_chunk->id);
-            print_hex(DEBUG_CMD_GET, missing_chunk->hash, SHA1_HASH_SIZE);
-            DPRINTF(DEBUG_CMD_GET, "\n");
+            DPRINTF(DEBUG_CMD_GET, "Don't have #%hu %s\n",
+                    missing_chunk->id,
+                    missing_chunk->hash_str_short);
         }
         else
         {
-            DPRINTF(DEBUG_CMD_GET, "Already have #%hu ", missing_chunk->id);
-            print_hex(DEBUG_CMD_GET, missing_chunk->hash, SHA1_HASH_SIZE);
-            DPRINTF(DEBUG_CMD_GET, "\n");
-            free(iter_drop_curr(missing_chunks_it));
+            DPRINTF(DEBUG_CMD_GET, "Already have #%hu %s\n",
+                    missing_chunk->id,
+                    missing_chunk->hash_str_short);
         }
     }
     ITER_END(missing_chunks_it);
