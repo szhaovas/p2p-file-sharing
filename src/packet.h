@@ -8,7 +8,6 @@
 #include "linked-list.h"
 
 
-#define FILED_NA (-1)
 #define MAX_PACKET_LEN 1500
 
 /* Packet Types */

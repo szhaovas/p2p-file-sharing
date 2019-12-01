@@ -28,6 +28,7 @@ const char* PACKET_TYPE_STRINGS[NUM_PACKET_TYPES] = {
 };
 
 #define PACKET_TYPE_STRING_MAX_LEN 6
+#define FILED_NA (-1)
 
 // Index into |header_field_info| array
 #define P_MAGIC 0

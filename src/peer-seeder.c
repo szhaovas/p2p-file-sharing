@@ -15,7 +15,7 @@
 void handle_WHOHAS(PACKET_ARGS)
 {
     LinkedList* hashes = get_hashes(payload);
-    // Go through requested hashes and collect hashes this peer owns
+    // Filter the hashes that we own
     LinkedList* matched_chunks = new_list();
     ITER_LOOP(hashes_it, hashes)
     {
@@ -41,8 +41,10 @@ void handle_WHOHAS(PACKET_ARGS)
     ITER_END(hashes_it);
     delete_list(hashes);
     
+    // We can seed some of the requested chunks
     if (matched_chunks->size)
     {
+        // Construct IHAVE packets
         LinkedList* packets = make_hash_packets(&matched_chunks);
         ITER_LOOP(packets_it, packets)
         {

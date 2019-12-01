@@ -22,23 +22,26 @@ typedef struct _download_t {
     chunk_t* chunk;
 } download_t;
 
-LinkedList* _missing_chunks = NULL;
+
+// Chunks that need a seeder
+LinkedList* pending_chunks = NULL;
 int pending_ihave = 0;
 LinkedList* seeder_list = NULL;
 
 
 /**
- Flood the network with WHOHAS packets containing missing chunks.
+ Flood the P2P network with WHOHAS packets containing missing chunk hashes.
  */
 void flood_WHOHAS(LinkedList* missing_chunks, bt_peer_t* peers, short id, int sock)
 {
-    // Initialize download list and chunks to download
-    _missing_chunks = missing_chunks;
-    pending_ihave = _missing_chunks->size;
+    // Record chunks that need a seeder
+    pending_chunks = missing_chunks;
+    pending_ihave = pending_chunks->size;
     
     // Construct WHOHAS packets
-    LinkedList* packets = make_hash_packets(&_missing_chunks);
+    LinkedList* packets = make_hash_packets(&pending_chunks);
     
+    // Send packets to everyone else
     ITER_LOOP(packets_it, packets)
     {
         uint8_t* packet = iter_get_item(packets_it);
@@ -58,23 +61,20 @@ void flood_WHOHAS(LinkedList* missing_chunks, bt_peer_t* peers, short id, int so
     }
     ITER_END(packets_it);
     delete_empty_list(packets);
-    ITER_LOOP(_missing_chunks_it, _missing_chunks)
-    {
-        chunk_t* chunk = iter_get_item(_missing_chunks_it);
-        DPRINTF(DEBUG_CMD_GET, "Chunk #%d ", chunk->id);
-        print_hex(DEBUG_CMD_GET, chunk->hash, SHA1_HASH_SIZE);
-        DPRINTF(DEBUG_CMD_GET, "\n");
-    }
 }
 
+
+/**
+ Handle IHAVE replies.
+ */
 void handle_IHAVE(PACKET_ARGS)
 {
+    // Ignore IHAVE reply if none is expected
     if (pending_ihave == 0) return;
     
     LinkedList* hashes = get_hashes(payload);
-    if (!seeder_list)
-        seeder_list = new_list();
-    // Look for the IHAVE sender in the list of seeders
+    if (!seeder_list) seeder_list = new_list();
+    // Look for the IHAVE sender in the seeder list
     seeder_t* seeder = NULL;
     ITER_LOOP(seeder_it, seeder_list)
     {
@@ -95,39 +95,41 @@ void handle_IHAVE(PACKET_ARGS)
         add_item(seeder_list, seeder);
     }
     
-    // Add the chunks that are still missing to the seeder's download list
-    ITER_LOOP(missing_chunks_it, _missing_chunks)
+    // Go through the pending chunks, and see which one(s) this seeder has
+    ITER_LOOP(pending_chunks_it, pending_chunks)
     {
-        chunk_t* missing_chunk = iter_get_item(missing_chunks_it);
+        chunk_t* pending_chunk = iter_get_item(pending_chunks_it);
         ITER_LOOP(hashes_it, hashes)
         {
             uint8_t* hash = iter_get_item(hashes_it);
-            // Found a chunk that's still missing
-            if (!memcmp(missing_chunk->hash, hash, SHA1_HASH_SIZE))
+            // This seeder can seed one of the pending chunks
+            if (!memcmp(pending_chunk->hash, hash, SHA1_HASH_SIZE))
             {
-                // Make a download_t object out of this missing chunk
+                // Decide to download this chunk from the seeder
                 download_t* download = malloc(sizeof(download_t));
-                download->chunk = missing_chunk;
-                download->next_packet = 0;
-                // Add the download to the peer's download list
+                download->chunk = pending_chunk;
+                // Add the download object to the peer's download list
                 add_item(seeder->download_list, download);
-                iter_drop_curr(missing_chunks_it);
+                // Mark this chunk as no longer pending
+                iter_drop_curr(pending_chunks_it);
                 pending_ihave -= 1;
                 break;
             }
         }
         ITER_END(hashes_it);
     }
-    ITER_END(missing_chunks_it);
+    ITER_END(pending_chunks_it);
     
-    // Start sending GET if all IHAVE replies were received
+    // Start sending GET to the seeders if all IHAVE replies were received
     if (pending_ihave == 0)
     {
         ITER_LOOP(seeder_it, seeder_list)
         {
             seeder_t* seeder = iter_get_item(seeder_it);
+            // Start downloading from the top of the list
             download_t* download = get_head(seeder->download_list);
             download->next_packet = 0;
+            // Send GET to this seeder
             uint8_t* packet = make_empty_packet();
             set_packet_type(packet, PTYPE_GET);
             set_payload(packet, download->chunk->hash, SHA1_HASH_SIZE);
