@@ -247,6 +247,7 @@ void process_get(char* chunkfile, char* outputfile) {
             DPRINTF(DEBUG_CMD_GET, "Already have #%hu %s\n",
                     missing_chunk->id,
                     missing_chunk->hash_str_short);
+            iter_drop_curr(missing_chunks_it);
         }
     }
     ITER_END(missing_chunks_it);
