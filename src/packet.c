@@ -173,7 +173,7 @@ LinkedList* get_hashes(uint8_t* payload)
     uint8_t* hash_ptr = payload + NHASH_WITH_PADDING;
     for (uint8_t i = 0; i < num_hashes; i++)
     {
-        add_item(hashes, hash_ptr);
+        insert_tail(hashes, hash_ptr);
         hash_ptr += SHA1_HASH_SIZE;
     }
     return hashes;
@@ -224,11 +224,11 @@ LinkedList* make_hash_packets(LinkedList** chunks_ptr)
             chunk_t* chunk = drop_head(chunks);
             memcpy(payload, chunk->hash, SHA1_HASH_SIZE);
             payload += SHA1_HASH_SIZE;
-            add_item(recycle, chunk); // Move the processed hash to recycle bin
+            insert_tail(recycle, chunk); // Move processed hash to recycle bin
         }
         // Construct partial header
         set_packet_len(packet, (uint16_t) (get_header_len(packet) + payload - payload_start));
-        add_item(packets, packet);
+        insert_tail(packets, packet);
     }
     assert(chunks->size == 0 && recycle->size == total_hashes);
     delete_empty_list(chunks);

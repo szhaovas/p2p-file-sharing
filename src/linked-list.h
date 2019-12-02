@@ -16,6 +16,7 @@ typedef struct _node_struct Node;
 /* Linked List */
 typedef struct {
     Node* head;
+    Node* tail;
     int size;
     int __id_gen;
     int __references;
@@ -29,7 +30,9 @@ void delete_list(LinkedList* list);
 
 void delete_empty_list(LinkedList* list);
 
-Node* add_item(LinkedList* list, void* item);
+Node* insert_head(LinkedList* list, void* item);
+
+Node* insert_tail(LinkedList* list, void* item);
 
 Node* find_item(LinkedList* list, void* item);
 

@@ -137,7 +137,7 @@ int read_chunk_file(char* chunk_file, LinkedList* chunk_list)
         }
         hex2binary(chunk->hash_str, SHA1_HASH_SIZE*2, chunk->hash);
         get_short_hash_str(chunk->hash_str, chunk->hash_str_short);
-        add_item(chunk_list, chunk);
+        insert_tail(chunk_list, chunk);
     }
     fclose(fp);
     return 0;

@@ -43,7 +43,7 @@ void handle_WHOHAS(PACKET_ARGS)
             if (!memcmp(hash, chunk->hash, SHA1_HASH_SIZE))
             {
                 DPRINTF(DEBUG_IN_WHOHAS, "Found in owned chunk #%hu\n", chunk->id);
-                add_item(matched_chunks, chunk);
+                insert_tail(matched_chunks, chunk);
                 // No need to free individual hashes since they were not malloc'ed by get_hashes()
                 iter_drop_curr(hashes_it);
                 break;
@@ -159,7 +159,7 @@ void handle_GET(PACKET_ARGS)
     fseek(fp, leecher->seed_chunk->id * CHUNK_SIZE, SEEK_SET);
     fread(leecher->data, sizeof(uint8_t), CHUNK_SIZE, fp);
     fclose(fp);
-    add_item(leecher_list, leecher);
+    insert_tail(leecher_list, leecher);
     send_next_data_packet(leecher, sock);
 }
 

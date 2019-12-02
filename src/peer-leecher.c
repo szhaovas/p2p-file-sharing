@@ -112,7 +112,7 @@ void handle_IHAVE(PACKET_ARGS)
         seeder = malloc(sizeof(seeder_t));
         seeder->peer = from;
         seeder->download_list = new_list();
-        add_item(seeder_list, seeder);
+        insert_tail(seeder_list, seeder);
         DPRINTF(DEBUG_LEECHER, "Found a new seeder (#%d)\n", seeder->peer->id);
     }
     DPRINTF(DEBUG_LEECHER, "Available data hashes from seeder %d\n", seeder->peer->id);
@@ -132,7 +132,7 @@ void handle_IHAVE(PACKET_ARGS)
                 download_t* download = malloc(sizeof(download_t));
                 download->chunk = pending_chunk;
                 // Add the download object to the peer's download list
-                add_item(seeder->download_list, download);
+                insert_tail(seeder->download_list, dl);
                 // Mark this chunk as no longer pending
                 iter_drop_curr(pending_chunks_it);
                 pending_ihave -= 1;

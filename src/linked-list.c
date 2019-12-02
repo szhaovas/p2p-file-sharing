@@ -1,6 +1,7 @@
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "linked-list.h"
 
@@ -21,6 +22,7 @@
 void init_list(LinkedList* list)
 {
     list->head = NULL;
+    list->tail = NULL;
     list->size = 0;
     list->__id_gen = 0;
     list->__references = 0;
@@ -65,13 +67,17 @@ void delete_list(LinkedList* list)
 }
 
 
+#define INSERT_HEAD 0
+#define INSERT_TAIL 1
+
 /**
- * Add an item, pointed to by |item|, to a linked list.
+ Insert item to the head or tail of a list.
  */
-Node* add_item(LinkedList* list, void* item)
+Node* insert(LinkedList* list, void* item, int head_or_tail)
 {
     // Allocate a new node
     Node* node = malloc(sizeof(Node));
+    memset(node, '\0', sizeof(Node));
     node->item = item;
     node->prev = NULL;
     node->next = NULL;
@@ -82,18 +88,47 @@ Node* add_item(LinkedList* list, void* item)
     if ( !list->head )
     {
         list->head = node;
+        list->tail = node;
     }
-    // At least one elements => Insert at head
+    // At least one elements => Insert at head or tail
     else
     {
-        node->next = list->head;
-        list->head->prev = node;
-        list->head = node;
+        if (head_or_tail == INSERT_HEAD)
+        {
+            node->next = list->head;
+            list->head->prev = node;
+            list->head = node;
+        }
+        else
+        {
+            node->prev = list->tail;
+            list->tail->next = node;
+            list->tail = node;
+        }
     }
     list->size += 1;
     list->__id_gen += 1;
     return node;
 }
+
+
+/**
+Insert item to the head of a list.
+*/
+Node* insert_head(LinkedList* list, void* item)
+{
+    return insert(list, item, INSERT_HEAD);
+}
+
+
+/**
+Insert item to the tail of a list.
+*/
+Node* insert_tail(LinkedList* list, void* item)
+{
+    return insert(list, item, INSERT_TAIL);
+}
+
 
 Node* get_valid_head(LinkedList* list)
 {
@@ -195,7 +230,15 @@ void remove_invalid(LinkedList* list)
         list->head = next_node; // There is no prev link to fix
     }
     
-    // Remove invalid nodes after head
+    // Remove invalid nodes at the tail
+    while (list->tail && !list->tail->__valid)
+    {
+        Node* prev_node = list->tail->prev;
+        free(list->tail);
+        list->tail = prev_node; // There is no prev link to fix
+    }
+    
+    // Remove invalid nodes after valid head
     Node* node = list->head;
     while (node)
     {
