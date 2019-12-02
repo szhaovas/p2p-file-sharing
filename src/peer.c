@@ -111,6 +111,17 @@ void print_short_hash_str(int level, uint8_t* hash)
 }
 
 
+void print_owned_chunk(int level)
+{
+    DPRINTF(level, "Owned chunks (%d):\n", owned_chunks->size);
+    ITER_LOOP(owned_chunk_it, owned_chunks)
+    {
+        chunk_t* chunk = iter_get_item(owned_chunk_it);
+        DPRINTF(level, "%d (%s) at %s\n", chunk->id, chunk->hash_str_short, chunk->data_file);
+    }
+    ITER_END(owned_chunk_it);
+}
+
 int read_chunk_file(char* chunk_file, LinkedList* chunk_list)
 {
     int rc = 0;

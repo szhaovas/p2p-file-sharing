@@ -54,6 +54,8 @@ extern packet_handler_t handlers[NUM_PACKET_TYPES];
 void make_generic_header(uint8_t* packet);
 void get_short_hash_str(const char* hash_str, char* hash_str_short);
 void print_short_hash_str(int level, uint8_t* hash);
+void print_owned_chunk(int level);
+
 
 
 #endif /* peer_h */
