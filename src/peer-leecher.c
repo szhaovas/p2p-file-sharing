@@ -82,6 +82,20 @@ void send_get_packet(download_t* dl, seeder_t* seeder, int sock)
 }
 
 
+void send_ack_packet(uint32_t ack_no, seeder_t* seeder, int sock)
+{
+    uint8_t* packet = make_empty_packet();
+    make_generic_header(packet);
+    set_packet_type(packet, PTYPE_ACK);
+    set_ack_no(packet, ack_no);
+//    print_packet_header(DEBUG_LEECHER, packet);
+    send_packet(sock, packet, &seeder->peer->addr);
+    DPRINTF(DEBUG_LEECHER, "Sent ACK with ack_no=%d\n", get_ack_no(packet));
+    free(packet);
+}
+
+
+
 /**
  Handle IHAVE replies.
  */
@@ -200,14 +214,7 @@ void handle_DATA(PACKET_ARGS)
     {
         DPRINTF(DEBUG_LEECHER, "Got the next DATA packet with seq_no=%d\n", seq_no);
         // Reply ACK
-        uint8_t* ack_packet = make_empty_packet();
-        make_generic_header(ack_packet);
-        set_packet_type(ack_packet, PTYPE_ACK);
-        set_ack_no(ack_packet, seq_no);
-        print_packet_header(DEBUG_LEECHER, ack_packet);
-        send_packet(sock, ack_packet, &from->addr);
-        DPRINTF(DEBUG_LEECHER, "Sent ACK packet with ack_no=%d\n", get_ack_no(ack_packet));
-        free(ack_packet);
+        send_ack_packet(seq_no, seeder, sock);
         
         // More data to download
         if (dl->remaining_bytes > MAX_PAYLOAD_LEN)
