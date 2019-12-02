@@ -217,6 +217,15 @@ void process_get(char* chunkfile, char* outputfile) {
         perror("process_get could not open chunkfile");
         return;
     }
+    // Initialize outputfile (empty it if it already exists)
+    FILE* fp = fopen(outputfile, "w");
+    if (!fp)
+    {
+        perror("process_get could not open outputfile for writing");
+        return;
+    }
+    fclose(fp);
+    
     // Drop already owned chunks in missing_chunks
     ITER_LOOP(missing_chunks_it, missing_chunks)
     {
