@@ -166,8 +166,6 @@ void handle_GET(PACKET_ARGS)
 
 void handle_ACK(PACKET_ARGS)
 {
-    DPRINTF(DEBUG_SEEDER, "Peer %d acks packet no. %d\n", from->id, ack_no);
-    
     // See if the sender is actually a registered leecher
     leecher_t* leecher = NULL;
     Node* leecher_node = NULL;
@@ -196,10 +194,10 @@ void handle_ACK(PACKET_ARGS)
         // More data packets to send
         if (leecher->remaining_bytes > MAX_PAYLOAD_LEN)
         {
-            int remaining_packets = ceil((double) leecher->remaining_bytes / MAX_PAYLOAD_LEN);
-            DPRINTF(DEBUG_SEEDER, "Pending %d more DATA packets to send\n", remaining_packets);
             leecher->next_packet += 1;
             leecher->remaining_bytes -= MAX_PAYLOAD_LEN;
+            int remaining_packets = ceil((double) leecher->remaining_bytes / MAX_PAYLOAD_LEN);
+            DPRINTF(DEBUG_SEEDER, "Pending %d more DATA packets to send\n", remaining_packets);
             send_next_data_packet(leecher, sock);
         }
         // Ack'ed data packet was the last one

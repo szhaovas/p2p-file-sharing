@@ -143,16 +143,16 @@ void handle_IHAVE(PACKET_ARGS)
             if (!memcmp(pending_chunk->hash, hash, SHA1_HASH_SIZE))
             {
                 // Decide to download this chunk from the seeder
-                download_t* download = malloc(sizeof(download_t));
-                download->chunk = pending_chunk;
+                download_t* dl = malloc(sizeof(download_t));
+                dl->chunk = pending_chunk;
                 // Add the download object to the peer's download list
                 insert_tail(seeder->download_list, dl);
                 // Mark this chunk as no longer pending
                 iter_drop_curr(pending_chunks_it);
                 pending_ihave -= 1;
                 DPRINTF(DEBUG_LEECHER, "Will download chunk %d (%s) from seeder #%d\n",
-                        download->chunk->id,
-                        download->chunk->hash_str_short,
+                        dl->chunk->id,
+                        dl->chunk->hash_str_short,
                         seeder->peer->id);
                 DPRINTF(DEBUG_LEECHER, "Pending IHAVE's: %d\n", pending_ihave);
                 break;
@@ -212,7 +212,7 @@ void handle_DATA(PACKET_ARGS)
     
     if (seq_no == dl->next_packet)
     {
-        DPRINTF(DEBUG_LEECHER, "Got the next DATA packet with seq_no=%d\n", seq_no);
+        DPRINTF(DEBUG_LEECHER, "Got DATA with seq_no=%d\n", seq_no);
         // Reply ACK
         send_ack_packet(seq_no, seeder, sock);
         
