@@ -21,16 +21,19 @@ extern unsigned int debug;
  * -d list.  This list is processed by debugparse.pl to create the
  * help file automatically.
  */
-#define DEBUG_NONE      0x00    // DBTEXT:  No debugging
-#define DEBUG_ERRS      0x01    // DBTEXT:  Verbose error reporting
-#define DEBUG_INIT      0x02    // DBTEXT:  Debug initialization
-#define DEBUG_SOCKETS   0x04    // DBTEXT:  Debug socket operations
-#define DEBUG_PROCESSES 0x08    // DBTEXT:  Debug processes (fork/reap/etc)
-#define DEBUG_SPIFFY    0x10    // DBTEXT:  Debug the spiffy sending code
-#define DEBUG_CMD_GET   0x20    // DBTEXT:  Debug GET commands
-#define DEBUG_IN_WHOHAS 0x30    // DBTEXT:  Debug inbound WHOHAS packets
-#define DEBUG_LEECHER   0x40    // DBTEXT:  Debug leecher
-#define DEBUG_SEEDER    0x80    // DBTEXT:  Debug seeder
+#define DEBUG_NONE              0x00    // DBTEXT:  No debugging
+#define DEBUG_ERRS              0x01    // DBTEXT:  Verbose error reporting
+#define DEBUG_INIT              0x02    // DBTEXT:  Debug initialization
+#define DEBUG_SOCKETS           0x04    // DBTEXT:  Debug socket operations
+#define DEBUG_SPIFFY            0x08    // DBTEXT:  Debug the spiffy sending code
+#define DEBUG_LEECHER           0x10    // DBTEXT:  Debug leecher
+#define DEBUG_LEECHER_RELIABLE  0x20    // DBTEXT:  Debug leecher reliability
+#define DEBUG_LEECHER_ALL       0x30    // DBTEXT:  Debug leecher (all)
+#define DEBUG_SEEDER            0x40    // DBTEXT:  Debug seeder
+#define DEBUG_SEEDER_RELIABLE   0x80    // DBTEXT:  Debug seeder reliability
+#define DEBUG_SEEDER_ALL        0xC0    // DBTEXT:  Debug seeder (all)
+#define DEBUG_CMD_GET           0x100   // DBTEXT:  Debug GET commands
+//#define DEBUG_PROCESSES         0x??    // DBTEXT:  Debug processes (fork/reap/etc)
 
 #define DEBUG_ALL  0xffffffff
 

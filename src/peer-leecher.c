@@ -22,6 +22,7 @@ typedef struct _seeder_t {
 
 typedef struct _download_t {
     uint32_t next_packet;
+    uint32_t total_packets;
     uint64_t remaining_bytes;
     chunk_t* chunk;
     uint8_t data[BT_CHUNK_SIZE];
@@ -73,6 +74,7 @@ void send_get_packet(download_t* dl, seeder_t* seeder, int sock)
 {
     dl->next_packet = 0;
     dl->remaining_bytes = BT_CHUNK_SIZE;
+    dl->total_packets = ceil((double) dl->remaining_bytes / MAX_PAYLOAD_LEN);
     uint8_t* packet = make_empty_packet();
     make_generic_header(packet);
     set_packet_type(packet, PTYPE_GET);
@@ -80,22 +82,8 @@ void send_get_packet(download_t* dl, seeder_t* seeder, int sock)
     send_packet(sock, packet, &seeder->peer->addr);
     DPRINTF(DEBUG_LEECHER, "GET chunk %i (%s) from seeder %d\n",
             dl->chunk->id, dl->chunk->hash_str_short, seeder->peer->id);
-//    print_packet_header(DEBUG_LEECHER, packet);
     free(packet);
 }
-
-
-void send_ack_packet(uint32_t ack_no, seeder_t* seeder, int sock)
-{
-    uint8_t* packet = make_empty_packet();
-    make_generic_header(packet);
-    set_packet_type(packet, PTYPE_ACK);
-    set_ack_no(packet, ack_no);
-    send_packet(sock, packet, &seeder->peer->addr);
-//    DPRINTF(DEBUG_LEECHER, "%d ack'ed\n", get_ack_no(packet));
-    free(packet);
-}
-
 
 
 /**
@@ -203,7 +191,7 @@ void handle_DATA(PACKET_ARGS)
     // We don't have anything to do with this peer
     if (!seeder)
     {
-        DPRINTF(DEBUG_LEECHER, "Ignore unexpected DATA packet\n");
+        DPRINTF(DEBUG_LEECHER, "Ignore unexpected DATA from peer %d\n", from->id);
         return;
     }
     
@@ -214,9 +202,15 @@ void handle_DATA(PACKET_ARGS)
 //            dl->chunk->id, dl->chunk->hash_str_short, seeder->peer->id);
     if (seq_no == dl->next_packet)
     {
-//        DPRINTF(DEBUG_LEECHER, "%d received\n", seq_no);
+        DPRINTF(DEBUG_LEECHER_RELIABLE, "%3d/%d DATA received\n", seq_no, dl->total_packets);
         // Reply ACK
-        send_ack_packet(seq_no, seeder, sock);
+        uint8_t* ack = make_empty_packet();
+        make_generic_header(ack);
+        set_packet_type(ack, PTYPE_ACK);
+        set_ack_no(ack, seq_no);
+        send_packet(sock, ack, &seeder->peer->addr);
+        DPRINTF(DEBUG_LEECHER_RELIABLE, "%3d/%d ACK sent\n", get_ack_no(ack), dl->total_packets);
+        free(ack);
         
         // Copy payload data to local buffer
         size_t offset = seq_no * MAX_PAYLOAD_LEN;
@@ -225,13 +219,16 @@ void handle_DATA(PACKET_ARGS)
         assert(dl->remaining_bytes >= payload_len);
         dl->remaining_bytes -= payload_len;
         dl->next_packet += 1;
-        int remaining_packets = ceil((double) dl->remaining_bytes / MAX_PAYLOAD_LEN);
-//        DPRINTF(DEBUG_LEECHER, "Waiting for %d more DATA packets\n", remaining_packets);
         
         // Last DATA packet received
         if (dl->remaining_bytes == 0)
         {
-            DPRINTF(DEBUG_LEECHER, "Last DATA for chunk %d (%s) received\n", dl->chunk->id, dl->chunk->hash_str_short);
+            DPRINTF(DEBUG_SEEDER, "Last DATA received\n");
+            DPRINTF(DEBUG_SEEDER, "Finished leeching chunk %d (%s) from seeder %d\n",
+                    dl->chunk->id,
+                    dl->chunk->hash_str_short,
+                    seeder->peer->id);
+            
             // Checksum downloaded chunk
             uint8_t hash_checksum[SHA1_HASH_SIZE+1];
             shahash(dl->data, sizeof(dl->data), hash_checksum);

@@ -17,7 +17,8 @@
 typedef struct _leecher_t {
     bt_peer_t* peer;
     chunk_t* seed_chunk;
-    uint64_t next_packet;
+    uint32_t next_packet;
+    uint32_t total_packets;
     uint64_t remaining_bytes;
     uint8_t data[BT_CHUNK_SIZE];
 } leecher_t;
@@ -28,21 +29,16 @@ LinkedList* leecher_list = NULL;
 void handle_WHOHAS(PACKET_ARGS)
 {
     LinkedList* hashes = get_hashes(payload);
-    // Filter the hashes that we own
+    // Filter the owned hashes we own
     LinkedList* matched_chunks = new_list();
     ITER_LOOP(hashes_it, hashes)
     {
         uint8_t* hash = iter_get_item(hashes_it);
-        DPRINTF(DEBUG_IN_WHOHAS, "Looking for ");
-        print_short_hash_str(DEBUG_IN_WHOHAS, hash);
-        DPRINTF(DEBUG_IN_WHOHAS, "\n");
-        
         ITER_LOOP(owned_chunks_it, owned_chunks)
         {
             chunk_t* chunk = iter_get_item(owned_chunks_it);
             if (!memcmp(hash, chunk->hash, SHA1_HASH_SIZE))
             {
-                DPRINTF(DEBUG_IN_WHOHAS, "Found in owned chunk #%hu\n", chunk->id);
                 insert_tail(matched_chunks, chunk);
                 // No need to free individual hashes since they were not malloc'ed by get_hashes()
                 iter_drop_curr(hashes_it);
@@ -66,12 +62,12 @@ void handle_WHOHAS(PACKET_ARGS)
             make_generic_header(packet);
             set_packet_type(packet, PTYPE_IHAVE);
             // Print packet
-            print_packet_header(DEBUG_IN_WHOHAS, packet);
-            print_hash_payload(DEBUG_IN_WHOHAS, packet);
+            DPRINTF(DEBUG_SEEDER, "Sending IHAVE to peer %d\n", from->id);
+            print_hash_payload(DEBUG_SEEDER, packet);
             // Send packet
             if (send_packet(sock, packet, &from->addr) < 0)
             {
-                perror("handle_WHOHAS could not send packet");
+                perror("Could not send WHOHAS packet");
             }
             free(iter_drop_curr(packets_it));
         }
@@ -88,10 +84,10 @@ void send_next_data_packet(leecher_t* leecher, int sock)
     uint8_t* packet = make_empty_packet();
     make_generic_header(packet);
     set_packet_type(packet, PTYPE_DATA);
-    uint64_t offset = leecher->next_packet * MAX_PAYLOAD_LEN;
+    uint64_t offset = (uint64_t) leecher->next_packet * MAX_PAYLOAD_LEN;
     uint64_t to_read = fmin(MAX_PAYLOAD_LEN, leecher->remaining_bytes);
     set_payload(packet, leecher->data + offset, to_read);
-    set_seq_no(packet, (uint32_t) leecher->next_packet);
+    set_seq_no(packet, leecher->next_packet);
     send_packet(sock, packet, &leecher->peer->addr);
     free(packet);
 }
@@ -154,6 +150,7 @@ void handle_GET(PACKET_ARGS)
     leecher->seed_chunk = seed_chunk;
     leecher->next_packet = 0;
     leecher->remaining_bytes = BT_CHUNK_SIZE;
+    leecher->total_packets = ceil((double) leecher->remaining_bytes / MAX_PAYLOAD_LEN);
     DPRINTF(DEBUG_SEEDER, "Seeding chunk %d (%s) to leecher %d\n",
             leecher->seed_chunk->id, leecher->seed_chunk->hash_str_short, leecher->peer->id);
     
@@ -188,21 +185,24 @@ void handle_ACK(PACKET_ARGS)
     // We don't have anything to do with this peer
     if (!leecher)
     {
-        DPRINTF(DEBUG_SEEDER, "Didn't expect ACK from this peer\n");
+        DPRINTF(DEBUG_SEEDER, "Ignore unexpected ACK from peer %d\n", from->id);
         return;
     }
     
     if (ack_no == leecher->next_packet)
     {
-//        DPRINTF(DEBUG_SEEDER, "%d ack'ed\n", ack_no);
+        DPRINTF(DEBUG_SEEDER_RELIABLE, "%3d/%d ACK received\n",
+                ack_no,
+                leecher->total_packets);
         // More data packets to send
         if (leecher->remaining_bytes > MAX_PAYLOAD_LEN)
         {
             leecher->next_packet += 1;
             leecher->remaining_bytes -= MAX_PAYLOAD_LEN;
-            int remaining_packets = ceil((double) leecher->remaining_bytes / MAX_PAYLOAD_LEN);
-//            DPRINTF(DEBUG_SEEDER, "Pending %d more DATA packets to send\n", remaining_packets);
             send_next_data_packet(leecher, sock);
+            DPRINTF(DEBUG_SEEDER_RELIABLE, "%3d/%d DATA sent\n",
+                    leecher->next_packet,
+                    leecher->total_packets);
         }
         // Ack'ed data packet was the last one
         // => We are done seeding, so remove this leecher from the list
@@ -210,7 +210,9 @@ void handle_ACK(PACKET_ARGS)
         {
             DPRINTF(DEBUG_SEEDER, "Last ACK received.\n");
             DPRINTF(DEBUG_SEEDER, "Finished seeding chunk %d (%s) to leecher %d\n",
-                    leecher->seed_chunk->id, leecher->seed_chunk->hash_str_short, leecher->peer->id);
+                    leecher->seed_chunk->id,
+                    leecher->seed_chunk->hash_str_short,
+                    leecher->peer->id);
             free(drop_node(leecher_list, leecher_node));
             DPRINTF(DEBUG_SEEDER, "\n");
         }
