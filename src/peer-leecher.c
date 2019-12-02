@@ -1,10 +1,12 @@
 //
 //  peer-leecher.c
 //
+#include <assert.h>
 #include <math.h>
 #include <string.h> // memcmp()
 #include <stdlib.h> // malloc()
 #include "bt_parse.h"
+#include "chunk.h"
 #include "debug.h"
 #include "linked-list.h"
 #include "packet.h"
@@ -22,6 +24,7 @@ typedef struct _download_t {
     uint32_t next_packet;
     uint64_t remaining_bytes;
     chunk_t* chunk;
+    uint8_t data[BT_CHUNK_SIZE];
 } download_t;
 
 
@@ -216,16 +219,18 @@ void handle_DATA(PACKET_ARGS)
         // Reply ACK
         send_ack_packet(seq_no, seeder, sock);
         
-        // More data to download
-        if (dl->remaining_bytes > MAX_PAYLOAD_LEN)
-        {
-            dl->remaining_bytes -= payload_len;
-            dl->next_packet += 1;
-            int remaining_packets = ceil((double) dl->remaining_bytes / MAX_PAYLOAD_LEN);
-            DPRINTF(DEBUG_LEECHER, "Waiting for %d more DATA packets\n", remaining_packets);
-        }
-        // Received data packet was the last one
-        else
+        // Copy payload data to local buffer
+        size_t offset = seq_no * MAX_PAYLOAD_LEN;
+        memcpy(dl->data + offset, payload, MAX_PAYLOAD_LEN);
+        
+        assert(dl->remaining_bytes >= payload_len);
+        dl->remaining_bytes -= payload_len;
+        dl->next_packet += 1;
+        int remaining_packets = ceil((double) dl->remaining_bytes / MAX_PAYLOAD_LEN);
+        DPRINTF(DEBUG_LEECHER, "Waiting for %d more DATA packets\n", remaining_packets);
+        
+        // Last DATA packet received
+        if (dl->remaining_bytes == 0)
         {
             // FIXME: checksum downloaded chunk using SHA1?
             DPRINTF(DEBUG_LEECHER, "Received DATA packet was the last one\n");
