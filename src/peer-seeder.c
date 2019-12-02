@@ -147,12 +147,16 @@ void handle_GET(PACKET_ARGS)
         return;
     }
     
+    
     // Send first data packet
     leecher = malloc(sizeof(leecher_t));
     leecher->peer = from;
     leecher->seed_chunk = seed_chunk;
     leecher->next_packet = 0;
     leecher->remaining_bytes = BT_CHUNK_SIZE;
+    DPRINTF(DEBUG_SEEDER, "Seeding chunk %d (%s) to leecher %d\n",
+            leecher->seed_chunk->id, leecher->seed_chunk->hash_str_short, leecher->peer->id);
+    
     // Read chunk data into the buffer
     FILE* fp = fopen(config->data_file, "r");
     if (!fp) return; // FIXME: handle this error
@@ -190,22 +194,25 @@ void handle_ACK(PACKET_ARGS)
     
     if (ack_no == leecher->next_packet)
     {
-        DPRINTF(DEBUG_SEEDER, "Outstanding packet (%d) has been ack'ed\n", ack_no);
+//        DPRINTF(DEBUG_SEEDER, "%d ack'ed\n", ack_no);
         // More data packets to send
         if (leecher->remaining_bytes > MAX_PAYLOAD_LEN)
         {
             leecher->next_packet += 1;
             leecher->remaining_bytes -= MAX_PAYLOAD_LEN;
             int remaining_packets = ceil((double) leecher->remaining_bytes / MAX_PAYLOAD_LEN);
-            DPRINTF(DEBUG_SEEDER, "Pending %d more DATA packets to send\n", remaining_packets);
+//            DPRINTF(DEBUG_SEEDER, "Pending %d more DATA packets to send\n", remaining_packets);
             send_next_data_packet(leecher, sock);
         }
         // Ack'ed data packet was the last one
         // => We are done seeding, so remove this leecher from the list
         else
         {
-            DPRINTF(DEBUG_SEEDER, "Received ACK packet was the last one\n");
+            DPRINTF(DEBUG_SEEDER, "Last ACK received.\n");
+            DPRINTF(DEBUG_SEEDER, "Finished seeding chunk %d (%s) to leecher %d\n",
+                    leecher->seed_chunk->id, leecher->seed_chunk->hash_str_short, leecher->peer->id);
             free(drop_node(leecher_list, leecher_node));
+            DPRINTF(DEBUG_SEEDER, "\n");
         }
     }
     // Unexpected ack number

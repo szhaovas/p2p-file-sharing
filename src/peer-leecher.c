@@ -91,9 +91,8 @@ void send_ack_packet(uint32_t ack_no, seeder_t* seeder, int sock)
     make_generic_header(packet);
     set_packet_type(packet, PTYPE_ACK);
     set_ack_no(packet, ack_no);
-//    print_packet_header(DEBUG_LEECHER, packet);
     send_packet(sock, packet, &seeder->peer->addr);
-    DPRINTF(DEBUG_LEECHER, "Sent ACK with ack_no=%d\n", get_ack_no(packet));
+//    DPRINTF(DEBUG_LEECHER, "%d ack'ed\n", get_ack_no(packet));
     free(packet);
 }
 
@@ -168,7 +167,7 @@ void handle_IHAVE(PACKET_ARGS)
     // Start sending GET to the seeders if all IHAVE replies were received
     if (pending_ihave == 0)
     {
-        DPRINTF(DEBUG_LEECHER, "All IHAVE replies have been received. Start sending GET\n");
+        DPRINTF(DEBUG_LEECHER, "All IHAVE replies have been received. Start sending GET\n\n");
         // FIXME: send GET to only |max_conn| number of seeders
         ITER_LOOP(seeder_list_it, seeder_list)
         {
@@ -180,6 +179,7 @@ void handle_IHAVE(PACKET_ARGS)
         }
         ITER_END(seeder_list_it);
     }
+    DPRINTF(DEBUG_LEECHER, "\n");
 }
 
 
@@ -210,12 +210,11 @@ void handle_DATA(PACKET_ARGS)
     // Update the active download
     download_t* dl = get_head(seeder->download_list);
     Node* dl_node = get_head_node(seeder->download_list);
-    DPRINTF(DEBUG_LEECHER, "Continue downloading chunk %d (%s) from seeder %d\n",
-            dl->chunk->id, dl->chunk->hash_str_short, seeder->peer->id);
-    
+//    DPRINTF(DEBUG_LEECHER, "Continue downloading chunk %d (%s) from seeder %d\n",
+//            dl->chunk->id, dl->chunk->hash_str_short, seeder->peer->id);
     if (seq_no == dl->next_packet)
     {
-        DPRINTF(DEBUG_LEECHER, "Got DATA with seq_no=%d\n", seq_no);
+//        DPRINTF(DEBUG_LEECHER, "%d received\n", seq_no);
         // Reply ACK
         send_ack_packet(seq_no, seeder, sock);
         
@@ -227,16 +226,16 @@ void handle_DATA(PACKET_ARGS)
         dl->remaining_bytes -= payload_len;
         dl->next_packet += 1;
         int remaining_packets = ceil((double) dl->remaining_bytes / MAX_PAYLOAD_LEN);
-        DPRINTF(DEBUG_LEECHER, "Waiting for %d more DATA packets\n", remaining_packets);
+//        DPRINTF(DEBUG_LEECHER, "Waiting for %d more DATA packets\n", remaining_packets);
         
         // Last DATA packet received
         if (dl->remaining_bytes == 0)
         {
-            DPRINTF(DEBUG_LEECHER, "Received DATA packet was the last one\n");
+            DPRINTF(DEBUG_LEECHER, "Last DATA for chunk %d (%s) received\n", dl->chunk->id, dl->chunk->hash_str_short);
             // Checksum downloaded chunk
             uint8_t hash_checksum[SHA1_HASH_SIZE+1];
             shahash(dl->data, sizeof(dl->data), hash_checksum);
-            DPRINTF(DEBUG_LEECHER, "Received chunk has hash ");
+            DPRINTF(DEBUG_LEECHER, "Computed hash ");
             print_short_hash_str(DEBUG_LEECHER, hash_checksum);
             DPRINTF(DEBUG_LEECHER, ", expecting %s\n", dl->chunk->hash_str_short);
             // GET the chunk again if checksum failed
@@ -248,7 +247,7 @@ void handle_DATA(PACKET_ARGS)
             }
             else // Checksum passed
             {
-                DPRINTF(DEBUG_LEECHER, "Checksum passed. Writing downloaded chunk (id=%d) to data file: %s\n",
+                DPRINTF(DEBUG_LEECHER, "Checksum passed. Writing downloaded chunk %d to data file: %s\n",
                         dl->chunk->id, dl->chunk->data_file);
                 // Commit downloaded chunk to disk
                 FILE* output = fopen(dl->chunk->data_file, "a");
@@ -273,7 +272,7 @@ void handle_DATA(PACKET_ARGS)
                 // and add it to the list of owned chunks
                 insert_tail(owned_chunks, drop_node(seeder->download_list, dl_node));
                 // More queued downloads from this seeder
-                DPRINTF(DEBUG_LEECHER, "Number of pending downloads from seeder %d: %d\n",
+                DPRINTF(DEBUG_LEECHER, "Number of pending downloads from seeder %d: %d\n\n",
                         seeder->peer->id, seeder->download_list->size);
                 if (seeder->download_list->size > 0)
                 {
@@ -288,6 +287,7 @@ void handle_DATA(PACKET_ARGS)
                     free(drop_node(seeder_list, seeder_node));
                 }
             }
+        DPRINTF(DEBUG_LEECHER, "\n");
         }
     }
     // Unexpected seq number
