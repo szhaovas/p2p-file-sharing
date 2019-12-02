@@ -307,7 +307,7 @@ void peer_run(bt_config_t* config) {
     ITER_LOOP(owned_chunks_it, owned_chunks)
     {
         chunk_t* owned_chunk = iter_get_item(owned_chunks_it);
-        strcpy(owned_chunk->data_file, config->chunk_file);
+        strcpy(owned_chunk->data_file, config->data_file);
     }
     ITER_END(owned_chunks_it);
 
