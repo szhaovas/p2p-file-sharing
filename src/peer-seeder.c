@@ -154,7 +154,7 @@ void handle_GET(PACKET_ARGS)
     leecher->next_packet = 0;
     leecher->remaining_bytes = BT_CHUNK_SIZE;
     // Read chunk data into the buffer
-    FILE* fp = fopen(config->chunk_file, "r");
+    FILE* fp = fopen(config->data_file, "r");
     if (!fp) return; // FIXME: handle this error
     fseek(fp, leecher->seed_chunk->id * BT_CHUNK_SIZE, SEEK_SET);
     fread(leecher->data, sizeof(uint8_t), BT_CHUNK_SIZE, fp);
