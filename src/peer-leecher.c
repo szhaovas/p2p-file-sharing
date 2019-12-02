@@ -69,7 +69,7 @@ void flood_WHOHAS(LinkedList* missing_chunks, bt_peer_t* peers, short id, int so
 void send_get_packet(download_t* dl, seeder_t* seeder, int sock)
 {
     dl->next_packet = 0;
-    dl->remaining_bytes = CHUNK_SIZE;
+    dl->remaining_bytes = BT_CHUNK_SIZE;
     uint8_t* packet = make_empty_packet();
     make_generic_header(packet);
     set_packet_type(packet, PTYPE_GET);

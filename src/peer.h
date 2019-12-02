@@ -13,7 +13,6 @@
 /* Implementation-specific constants */
 #define MAGIC_NUMBER 3752
 #define VERSION 1
-#define CHUNK_SIZE 524288
 
 
 /* Chunk struct */

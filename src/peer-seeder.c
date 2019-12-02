@@ -19,7 +19,7 @@ typedef struct _leecher_t {
     chunk_t* seed_chunk;
     uint64_t next_packet;
     uint64_t remaining_bytes;
-    uint8_t data[CHUNK_SIZE];
+    uint8_t data[BT_CHUNK_SIZE];
 } leecher_t;
 
 LinkedList* leecher_list = NULL;
@@ -152,12 +152,12 @@ void handle_GET(PACKET_ARGS)
     leecher->peer = from;
     leecher->seed_chunk = seed_chunk;
     leecher->next_packet = 0;
-    leecher->remaining_bytes = CHUNK_SIZE;
+    leecher->remaining_bytes = BT_CHUNK_SIZE;
     // Read chunk data into the buffer
     FILE* fp = fopen(config->chunk_file, "r");
     if (!fp) return; // FIXME: handle this error
-    fseek(fp, leecher->seed_chunk->id * CHUNK_SIZE, SEEK_SET);
-    fread(leecher->data, sizeof(uint8_t), CHUNK_SIZE, fp);
+    fseek(fp, leecher->seed_chunk->id * BT_CHUNK_SIZE, SEEK_SET);
+    fread(leecher->data, sizeof(uint8_t), BT_CHUNK_SIZE, fp);
     fclose(fp);
     insert_tail(leecher_list, leecher);
     send_next_data_packet(leecher, sock);
