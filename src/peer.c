@@ -229,6 +229,7 @@ void process_get(char* chunkfile, char* outputfile) {
             DPRINTF(DEBUG_CMD_GET, "Don't have #%hu %s\n",
                     missing_chunk->id,
                     missing_chunk->hash_str_short);
+            strcpy(missing_chunk->data_file, outputfile);
         }
         else
         {
@@ -290,6 +291,13 @@ void peer_run(bt_config_t* config) {
         perror("peer_run could not read has_chunk_file");
         exit(-1);
     }
+    
+    ITER_LOOP(owned_chunks_it, owned_chunks)
+    {
+        chunk_t* owned_chunk = iter_get_item(owned_chunks_it);
+        strcpy(owned_chunk->data_file, config->chunk_file);
+    }
+    ITER_END(owned_chunks_it);
 
     if ((userbuf = create_userbuf()) == NULL) {
         perror("peer_run could not allocate userbuf");

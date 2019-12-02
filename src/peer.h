@@ -21,6 +21,7 @@ typedef struct _chunk_t {
     uint8_t hash[SHA1_HASH_SIZE];
     char hash_str[SHA1_HASH_STR_SIZE+1];
     char hash_str_short[SHA1_HASH_STR_SIZE+1];
+    char data_file[BT_FILENAME_LEN];
 } chunk_t;
 
 
