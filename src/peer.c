@@ -270,6 +270,21 @@ void peer_run(bt_config_t* config) {
     fd_set readfds;
     struct user_iobuf* userbuf;
     
+    FILE* master_chunk = fopen(config->chunk_file, "r");
+    if (!master_chunk)
+    {
+        perror("peer_run could not open master chunk file");
+        exit(-1);
+    }
+    if (fscanf(master_chunk, "File: %s\n", config->data_file) < 0)
+    {
+        perror("peer_run could not read master chunk file");
+        fclose(master_chunk);
+        exit(-1);
+    }
+    fclose(master_chunk);
+    printf("data-file:     %s\n", config->data_file);
+    
     owned_chunks = new_list();
     if (read_chunk_file(config->has_chunk_file, owned_chunks) < 0)
     {

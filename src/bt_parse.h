@@ -23,6 +23,7 @@ typedef struct bt_peer_s {
 
 struct bt_config_s {
   char  chunk_file[BT_FILENAME_LEN];
+  char  data_file[BT_FILENAME_LEN];
   char  has_chunk_file[BT_FILENAME_LEN];
   char  output_file[BT_FILENAME_LEN];
   char  peer_list_file[BT_FILENAME_LEN];
