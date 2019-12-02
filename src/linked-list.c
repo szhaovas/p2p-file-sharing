@@ -225,9 +225,17 @@ void remove_invalid(LinkedList* list)
     // Remove invalid nodes at the head
     while (list->head && !list->head->__valid)
     {
-        Node* next_node = list->head->next;
-        free(list->head);
-        list->head = next_node; // There is no prev link to fix
+        if (list->head == list->tail)
+        {
+            list->head = list->tail = NULL;
+            free(list->head);
+        }
+        else
+        {
+            Node* next_node = list->head->next;
+            free(list->head);
+            list->head = next_node; // There is no prev link to fix
+        }
     }
     
     // Remove invalid nodes at the tail
