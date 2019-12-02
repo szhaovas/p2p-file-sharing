@@ -58,7 +58,7 @@ int spiffy_recvfrom (int socket, void *buffer, size_t size, int flags, struct so
 	*lengthPtr = sizeof(struct sockaddr_in);
 
 	if (!giSpiffyEnabled) {
-		printf("Spiffy not enabled, using normal recvfrom\n");
+//		printf("Spiffy not enabled, using normal recvfrom\n");
 		return recvfrom(socket, buffer, size, flags, addr, lengthPtr);
 	}
 

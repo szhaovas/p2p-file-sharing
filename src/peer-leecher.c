@@ -77,7 +77,7 @@ void send_get_packet(download_t* dl, seeder_t* seeder, int sock)
     send_packet(sock, packet, &seeder->peer->addr);
     DPRINTF(DEBUG_LEECHER, "GET chunk %i (%s) from seeder %d\n",
             dl->chunk->id, dl->chunk->hash_str_short, seeder->peer->id);
-    print_packet_header(DEBUG_LEECHER, packet);
+//    print_packet_header(DEBUG_LEECHER, packet);
     free(packet);
 }
 
