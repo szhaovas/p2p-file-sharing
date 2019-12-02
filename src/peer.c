@@ -163,9 +163,10 @@ void handle_packet(uint8_t* packet, LinkedList* owned_chunks, int sock, bt_peer_
     uint8_t version = get_version(packet);
     uint8_t packet_type = get_packet_type(packet);
     if (packet_type < NUM_PACKET_TYPES &&
+        // FIXME: cannot trust incoming packets! Check for header_len, packet_len, and any other field
         magic_no == MAGIC_NUMBER && version == VERSION)
     {
-        DPRINTF(DEBUG_ALL, "Got a new packet\n");
+        DPRINTF(DEBUG_ALL, "New packet:\n");
         print_packet_header(DEBUG_ALL, packet);
         (*handlers[packet_type])(get_seq_no(packet),
                                  get_ack_no(packet),
@@ -176,6 +177,7 @@ void handle_packet(uint8_t* packet, LinkedList* owned_chunks, int sock, bt_peer_
                                  sock,
                                  from,
                                  &config);
+        DPRINTF(DEBUG_ALL, "\n");
     }
 }
 
@@ -188,10 +190,9 @@ void process_inbound_udp(int sock) {
     fromlen = sizeof(from);
     spiffy_recvfrom(sock, buf, MAX_PACKET_LEN, 0, (struct sockaddr *) &from, &fromlen);
 
-    printf("Incoming message from %s:%d\n%s\n\n",
+    printf("Incoming message from %s:%d\n\n",
            inet_ntoa(from.sin_addr),
-           ntohs(from.sin_port),
-           buf);
+           ntohs(from.sin_port));
     bt_peer_t* peer = find_peer_with_addr(&from);
     if (peer)
         handle_packet(buf, owned_chunks, sock, peer);

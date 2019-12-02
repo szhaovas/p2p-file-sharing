@@ -139,7 +139,8 @@ void set_payload(uint8_t* packet, uint8_t* payload, size_t payload_len)
 
 /* Private Getters */
 uint16_t get_header_len(uint8_t* packet)
-{   return get_field(packet, P_HDLEN);    }
+{   return HEADER_LEN;    } // FIXME: cannot trust incoming packets!
+//{   return get_field(packet, P_HDLEN);    }
 
 uint16_t get_num_hashes(uint8_t* packet)
 {   return get_field(packet, P_NHASH);   }
