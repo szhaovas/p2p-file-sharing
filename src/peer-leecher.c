@@ -14,12 +14,13 @@
 #include "peer-leecher.h"
 
 
-/* Struct for each chunk to download */
+/* A seeder is a peer from whom we download a list of chunks */
 typedef struct _seeder_t {
     bt_peer_t* peer;
-    LinkedList* download_list;
+    LinkedList* download_queue;
 } seeder_t;
 
+/* Download object for each chunk */
 typedef struct _download_t {
     uint32_t next_packet;
     uint32_t total_packets;
@@ -86,6 +87,17 @@ void send_get_packet(download_t* dl, seeder_t* seeder, int sock)
 }
 
 
+void send_ack_packet(seeder_t* seeder, uint32_t ack_no, int sock)
+{
+    uint8_t* packet = make_empty_packet();
+    make_generic_header(packet);
+    set_packet_type(packet, PTYPE_ACK);
+    set_ack_no(packet, ack_no);
+    send_packet(sock, packet, &seeder->peer->addr);
+    free(packet);
+}
+
+
 /**
  Handle IHAVE replies.
  */
@@ -115,7 +127,7 @@ void handle_IHAVE(PACKET_ARGS)
     {
         seeder = malloc(sizeof(seeder_t));
         seeder->peer = from;
-        seeder->download_list = new_list();
+        seeder->download_queue = new_list();
         insert_tail(seeder_list, seeder);
         DPRINTF(DEBUG_LEECHER, "Found a new seeder (#%d)\n", seeder->peer->id);
     }
@@ -136,7 +148,7 @@ void handle_IHAVE(PACKET_ARGS)
                 download_t* dl = malloc(sizeof(download_t));
                 dl->chunk = pending_chunk;
                 // Add the download object to the peer's download list
-                insert_tail(seeder->download_list, dl);
+                insert_tail(seeder->download_queue, dl);
                 // Mark this chunk as no longer pending
                 iter_drop_curr(pending_chunks_it);
                 pending_ihave -= 1;
@@ -161,7 +173,7 @@ void handle_IHAVE(PACKET_ARGS)
         {
             seeder_t* seeder = iter_get_item(seeder_list_it);
             // Start downloading from the top of the list
-            download_t* dl = get_head(seeder->download_list);
+            download_t* dl = get_head(seeder->download_queue);
             // Send GET to this seeder
             send_get_packet(dl, seeder, sock);
         }
@@ -195,22 +207,14 @@ void handle_DATA(PACKET_ARGS)
         return;
     }
     
-    // Update the active download
-    download_t* dl = get_head(seeder->download_list);
-    Node* dl_node = get_head_node(seeder->download_list);
-//    DPRINTF(DEBUG_LEECHER, "Continue downloading chunk %d (%s) from seeder %d\n",
-//            dl->chunk->id, dl->chunk->hash_str_short, seeder->peer->id);
-    if (seq_no == dl->next_packet)
+    download_t* dl = get_head(seeder->download_queue);
+    Node* dl_node  = get_head_node(seeder->download_queue);
+    if (seq_no == dl->next_packet) // We expect this DATA packet
     {
         DPRINTF(DEBUG_LEECHER_RELIABLE, "%3d/%d DATA received\n", seq_no, dl->total_packets);
-        // Reply ACK
-        uint8_t* ack = make_empty_packet();
-        make_generic_header(ack);
-        set_packet_type(ack, PTYPE_ACK);
-        set_ack_no(ack, seq_no);
-        send_packet(sock, ack, &seeder->peer->addr);
-        DPRINTF(DEBUG_LEECHER_RELIABLE, "%3d/%d ACK sent\n", get_ack_no(ack), dl->total_packets);
-        free(ack);
+        
+        send_ack_packet(seeder, seq_no, sock);
+        DPRINTF(DEBUG_LEECHER_RELIABLE, "%3d/%d ACK sent\n", get_ack_no(packet), dl->total_packets);
         
         // Copy payload data to local buffer
         size_t offset = seq_no * MAX_PAYLOAD_LEN;
@@ -265,24 +269,26 @@ void handle_DATA(PACKET_ARGS)
                     // FIXME: Do more!
                 }
                 fclose(output);
+                
                 // Remove downloaded chunk from seeder's download list
                 // and add it to the list of owned chunks
                 insert_tail(owned_chunks, dl->chunk);
                 print_owned_chunk(DEBUG_LEECHER);
-                free(drop_node(seeder->download_list, dl_node));
-                // More queued downloads from this seeder
+                free(drop_node(seeder->download_queue, dl_node));
+                
                 DPRINTF(DEBUG_LEECHER, "Number of pending downloads from seeder %d: %d\n\n",
-                        seeder->peer->id, seeder->download_list->size);
-                if (seeder->download_list->size > 0)
+                        seeder->peer->id, seeder->download_queue->size);
+                // More queued downloads from this seeder
+                if (seeder->download_queue->size > 0)
                 {
-                    // Send GET (next chunk to download) to this seeder
-                    send_get_packet(get_head(seeder->download_list), seeder, sock);
+                    // Send GET (next chunk in the download queue) to this seeder
+                    send_get_packet(get_head(seeder->download_queue), seeder, sock);
                 }
-                // We want nothing else from this seeder
+                // We got everything we needed from this seeder
                 else
                 {
                     DPRINTF(DEBUG_LEECHER, "No more downloads from seeder %d\n", seeder->peer->id);
-                    delete_empty_list(seeder->download_list);
+                    delete_empty_list(seeder->download_queue);
                     free(drop_node(seeder_list, seeder_node));
                 }
             }
