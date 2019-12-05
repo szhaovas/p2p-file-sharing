@@ -95,8 +95,11 @@ void send_next_data_packet(leecher_t* leecher, int sock)
 
 void handle_GET(PACKET_ARGS)
 {
-    uint8_t* hash = payload;
+    // Do not respond if already seeding to |max_conn|
+    if (leecher_list && leecher_list->size >= config->max_conn)
+        return;
     
+    uint8_t* hash = payload;
     DPRINTF(DEBUG_SEEDER, "Peer %d wants hash ", from->id);
     print_short_hash_str(DEBUG_SEEDER, hash);
     DPRINTF(DEBUG_SEEDER, "\n");
@@ -121,7 +124,6 @@ void handle_GET(PACKET_ARGS)
         return;
     }
     
-    // FIXME: seed to only |max_conn| number of leechers
     if (!leecher_list)
         leecher_list = new_list();
     
