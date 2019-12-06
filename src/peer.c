@@ -4,11 +4,12 @@
 
 #include <sys/types.h>
 #include <arpa/inet.h>
-#include <sys/socket.h>
 #include <netinet/in.h>
+#include <sys/socket.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h> // access()
 #include "bt_parse.h"
 #include "chunk.h"
 #include "debug.h"
@@ -177,14 +178,11 @@ void process_get(char* chunkfile, char* outputfile) {
         perror("process_get could not open chunkfile");
         return;
     }
-    // Initialize outputfile (empty it if it already exists)
-    FILE* fp = fopen(outputfile, "w");
-    if (!fp)
+    if (!access(outputfile, W_OK))
     {
-        perror("process_get could not open outputfile for writing");
+        perror("process_get could not open output file for writing");
         return;
     }
-    fclose(fp);
     
     // Drop already owned chunks in missing_chunks
     ITER_LOOP(missing_chunks_it, missing_chunks)
