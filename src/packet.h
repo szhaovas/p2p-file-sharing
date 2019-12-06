@@ -31,7 +31,7 @@
 /* Argments for packet handlers */
 #define PACKET_ARGS \
     uint32_t seq_no, uint32_t ack_no, uint8_t* payload, uint16_t payload_len, uint8_t* packet, \
-    LinkedList* owned_chunks, int sock, bt_peer_t* from, bt_config_t* config
+    LinkedList* owned_chunks, bt_peer_t* from, bt_config_t* config
 
 /* Packet handler type */
 typedef void (*packet_handler_t)(PACKET_ARGS);
@@ -45,7 +45,7 @@ PACKET(handle_DATA);
 PACKET(handle_ACK);
 PACKET(handle_DENIED);
 
-void handle_packet(uint8_t* packet, LinkedList* owned_chunks, int sock, bt_peer_t* from, bt_config_t* config);
+void handle_packet(uint8_t* packet, LinkedList* owned_chunks, bt_peer_t* from, bt_config_t* config);
 
 
 void set_magic_number(uint8_t* packet, uint16_t magic_no);

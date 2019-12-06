@@ -38,7 +38,7 @@ LinkedList* seeder_list = NULL;
 /**
  Flood the P2P network with WHOHAS packets containing missing chunk hashes.
  */
-void flood_WHOHAS(LinkedList* missing_chunks, bt_peer_t* peers, short id, int sock)
+void flood_WHOHAS(LinkedList* missing_chunks, bt_config_t* config)
 {
     // Record chunks that need a seeder
     pending_chunks = missing_chunks;
@@ -55,10 +55,10 @@ void flood_WHOHAS(LinkedList* missing_chunks, bt_peer_t* peers, short id, int so
         make_generic_header(packet);
         set_packet_type(packet, PTYPE_WHOHAS);
         // Send packet
-        for (bt_peer_t* peer = peers; peer != NULL; peer = peer->next)
+        for (bt_peer_t* peer = config->peers; peer != NULL; peer = peer->next)
         {
-            if (peer->id == id) continue;
-            if (send_packet(sock, packet, &peer->addr) < 0)
+            if (peer->id == config->identity) continue;
+            if (send_packet(config->sock, packet, &peer->addr) < 0)
             {
                 perror("process_get could not send packet");
             }
@@ -215,7 +215,7 @@ void handle_DATA(PACKET_ARGS)
     {
         DPRINTF(DEBUG_LEECHER_RELIABLE, "%3d DATA received\n", seq_no);
         
-        send_ack_packet(seeder, seq_no, sock);
+        send_ack_packet(seeder, seq_no, config->sock);
         DPRINTF(DEBUG_LEECHER_RELIABLE, "%3d ACK sent\n", get_ack_no(packet));
         
         // Copy payload data to local buffer
@@ -244,7 +244,7 @@ void handle_DATA(PACKET_ARGS)
             {
                 DPRINTF(DEBUG_LEECHER, "Checksum failed. Re-download chunk %d (%s) from seeder %d\n",
                         dl->chunk->id, dl->chunk->hash_str_short, seeder->peer->id);
-                send_get_packet(dl, seeder, sock);
+                send_get_packet(dl, seeder, config->sock);
             }
             else // Checksum passed
             {
@@ -282,7 +282,7 @@ void handle_DATA(PACKET_ARGS)
                 if (seeder->download_queue->size > 0)
                 {
                     // Send GET (next chunk in the download queue) to this seeder
-                    send_get_packet(get_head(seeder->download_queue), seeder, sock);
+                    send_get_packet(get_head(seeder->download_queue), seeder, config->sock);
                 }
                 // We got everything we needed from this seeder
                 else

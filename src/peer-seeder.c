@@ -69,7 +69,7 @@ void handle_WHOHAS(PACKET_ARGS)
             DPRINTF(DEBUG_SEEDER, "Sending IHAVE to peer %d\n", from->id);
             print_hash_payload(DEBUG_SEEDER, packet);
             // Send packet
-            if (send_packet(sock, packet, &from->addr) < 0)
+            if (send_packet(config->sock, packet, &from->addr) < 0)
             {
                 perror("Could not send WHOHAS packet");
             }
@@ -167,7 +167,7 @@ void handle_GET(PACKET_ARGS)
     fread(leecher->data, sizeof(uint8_t), BT_CHUNK_SIZE, fp);
     fclose(fp);
     insert_tail(leecher_list, leecher);
-    send_next_data_packet(leecher, sock);
+    send_next_data_packet(leecher, config->sock);
 }
 
 
@@ -205,7 +205,7 @@ void handle_ACK(PACKET_ARGS)
         {
             leecher->next_packet += 1;
             leecher->remaining_bytes -= DATA_PAYLOAD_LEN;
-            send_next_data_packet(leecher, sock);
+            send_next_data_packet(leecher, config->sock);
             DPRINTF(DEBUG_SEEDER_RELIABLE, "%3d/%d DATA sent\n",
                     leecher->next_packet,
                     leecher->total_packets);

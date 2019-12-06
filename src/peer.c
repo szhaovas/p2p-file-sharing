@@ -166,7 +166,7 @@ void process_inbound_udp(int sock) {
 //    printf("Incoming message from %s:%d\n\n", inet_ntoa(from.sin_addr), ntohs(from.sin_port));
     bt_peer_t* peer = find_peer_with_addr(&from);
     if (peer)
-        handle_packet(buf, owned_chunks, sock, peer, &config);
+        handle_packet(buf, owned_chunks, peer, &config);
 }
 
 
@@ -229,7 +229,7 @@ void process_get(char* chunkfile, char* outputfile) {
     if (missing_chunks->size > 0)
     {
         DPRINTF(DEBUG_CMD_GET, "WHOHAS flooding\n");
-        flood_WHOHAS(missing_chunks, config.peers, config.identity, sock);
+        flood_WHOHAS(missing_chunks, &config);
     }
     else
     {
@@ -305,6 +305,8 @@ void peer_run(bt_config_t* config) {
         perror("peer_run could not bind socket");
         exit(-1);
     }
+    
+    config->sock = sock;
 
     spiffy_init(config->identity, (struct sockaddr *) &myaddr, sizeof(myaddr));
 

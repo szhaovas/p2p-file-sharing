@@ -216,7 +216,7 @@ int validate_packet(uint8_t* packet, uint16_t magic_no, uint8_t version)
 /**
  Dispatch a packet to the appropriate handler.
  */
-void handle_packet(uint8_t* packet, LinkedList* owned_chunks, int sock, bt_peer_t* from, bt_config_t* config)
+void handle_packet(uint8_t* packet, LinkedList* owned_chunks, bt_peer_t* from, bt_config_t* config)
 {
     if (validate_packet(packet, MAGIC_NUMBER, VERSION))
     {
@@ -230,7 +230,6 @@ void handle_packet(uint8_t* packet, LinkedList* owned_chunks, int sock, bt_peer_
                                  get_payload_len(packet),
                                  packet,
                                  owned_chunks,
-                                 sock,
                                  from,
                                  config);
     }
