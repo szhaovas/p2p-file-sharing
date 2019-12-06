@@ -40,11 +40,6 @@ const char* PACKET_TYPE_STRINGS[NUM_PACKET_TYPES] = {
 #define P_ACKNO 6
 #define P_NHASH 7
 
-
-
-
-
-
 /* Table of (offset, size) pairs */
 // Keys
 #define OFFSET  0
@@ -61,6 +56,18 @@ int header_field_info [8][2] = {
     {6, SIZE_16},  // 4. Total Packet Length   [2 B]
     {8, SIZE_32},  // 5. Sequence Number       [4 B]
     {12,SIZE_32},  // 6. Acknowledgment Number [4 B]
+};
+
+
+/* Table of packet handlers */
+
+packet_handler_t handlers[NUM_PACKET_TYPES] = {
+    handle_WHOHAS,
+    handle_IHAVE,
+    handle_GET,
+    handle_DATA,
+    handle_ACK,
+    handle_DENIED
 };
 
 
@@ -193,6 +200,40 @@ uint8_t* make_empty_packet()
     set_header_len(packet, HEADER_LEN);
     set_packet_len(packet, HEADER_LEN);
     return packet;
+}
+
+int validate_packet(uint8_t* packet, uint16_t magic_no, uint8_t version)
+{
+    return get_magic_no(packet) == magic_no &&
+           get_version(packet) == version &&
+           get_packet_type(packet) < NUM_PACKET_TYPES &&
+           get_header_len(packet) == HEADER_LEN &&
+           get_packet_len(packet) <= MAX_PACKET_LEN &&
+           get_payload_len(packet) <= MAX_PAYLOAD_LEN;
+}
+
+
+/**
+ Dispatch a packet to the appropriate handler.
+ */
+void handle_packet(uint8_t* packet, LinkedList* owned_chunks, int sock, bt_peer_t* from, bt_config_t* config)
+{
+    if (validate_packet(packet, MAGIC_NUMBER, VERSION))
+    {
+//        printf("New packet:\n");
+//        print_packet_header(DEBUG_NONE, packet);
+//        printf("\n");
+        uint8_t packet_type = get_packet_type(packet);
+        (*handlers[packet_type])(get_seq_no(packet),
+                                 get_ack_no(packet),
+                                 get_payload(packet),
+                                 get_payload_len(packet),
+                                 packet,
+                                 owned_chunks,
+                                 sock,
+                                 from,
+                                 config);
+    }
 }
 
 

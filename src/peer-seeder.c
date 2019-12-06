@@ -28,6 +28,8 @@ LinkedList* leecher_list = NULL;
 
 void handle_WHOHAS(PACKET_ARGS)
 {
+    // ??? FIXME: Do not respond if already seeding to |max_conn| number of peers
+    
     LinkedList* hashes = get_hashes(payload);
     // Filter the owned hashes we own
     LinkedList* matched_chunks = new_list();

@@ -9,34 +9,23 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "bt_parse.h"
+#include "chunk.h"
 #include "debug.h"
 #include "spiffy.h"
-#include "bt_parse.h"
 #include "input_buffer.h"
-#include "chunk.h"
-#include "sha.h"
-#include "packet.h"
 #include "linked-list.h"
+#include "packet.h"
 #include "peer.h"
 #include "peer-seeder.h"
 #include "peer-leecher.h"
-
-
-packet_handler_t handlers[NUM_PACKET_TYPES] = {
-    handle_WHOHAS,
-    handle_IHAVE,
-    handle_GET,
-    handle_DATA,
-    handle_ACK,
-    handle_DENIED
-};
+#include "sha.h"
 
 
 /* Forward declarations */
 void peer_run(bt_config_t* config);
 int read_chunk_file(char* chunk_file, LinkedList* chunk_list);
 bt_peer_t* find_peer_with_addr(struct sockaddr_in* addr);
-void handle_packet(uint8_t* packet, LinkedList* owned_chunks, int sock, bt_peer_t* from);
 
 
 /* Global variables */
@@ -165,35 +154,6 @@ void make_generic_header(uint8_t* packet)
 }
 
 
-/**
- Dispatch a packet to the appropriate handler.
- */
-void handle_packet(uint8_t* packet, LinkedList* owned_chunks, int sock, bt_peer_t* from)
-{
-    uint16_t magic_no = get_magic_no(packet);
-    uint8_t version = get_version(packet);
-    uint8_t packet_type = get_packet_type(packet);
-    if (packet_type < NUM_PACKET_TYPES &&
-        // FIXME: cannot trust incoming packets! Check for header_len, packet_len, and any other field
-        magic_no == MAGIC_NUMBER && version == VERSION)
-    {
-//        printf("New packet:\n");
-//        print_packet_header(DEBUG_NONE, packet);
-//        printf("\n");
-        
-        (*handlers[packet_type])(get_seq_no(packet),
-                                 get_ack_no(packet),
-                                 get_payload(packet),
-                                 get_payload_len(packet),
-                                 packet,
-                                 owned_chunks,
-                                 sock,
-                                 from,
-                                 &config);
-    }
-}
-
-
 void process_inbound_udp(int sock) {
     struct sockaddr_in from;
     socklen_t fromlen;
@@ -205,7 +165,7 @@ void process_inbound_udp(int sock) {
 //    printf("Incoming message from %s:%d\n\n", inet_ntoa(from.sin_addr), ntohs(from.sin_port));
     bt_peer_t* peer = find_peer_with_addr(&from);
     if (peer)
-        handle_packet(buf, owned_chunks, sock, peer);
+        handle_packet(buf, owned_chunks, sock, peer, &config);
 }
 
 

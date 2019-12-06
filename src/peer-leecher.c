@@ -211,6 +211,7 @@ void handle_DATA(PACKET_ARGS)
     Node* dl_node  = get_head_node(seeder->download_queue);
     if (seq_no == dl->next_packet) // We expect this DATA packet
     {
+        // FIXME: Make sure this packet looks good
         DPRINTF(DEBUG_LEECHER_RELIABLE, "%3d/%d DATA received\n", seq_no, dl->total_packets);
         
         send_ack_packet(seeder, seq_no, sock);
@@ -220,6 +221,7 @@ void handle_DATA(PACKET_ARGS)
         size_t offset = seq_no * MAX_PAYLOAD_LEN;
         memcpy(dl->data + offset, payload, MAX_PAYLOAD_LEN);
         
+        // FIXME: allow non-maximal-size DATA packets
         assert(dl->remaining_bytes >= payload_len);
         dl->remaining_bytes -= payload_len;
         dl->next_packet += 1;
