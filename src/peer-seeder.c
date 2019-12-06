@@ -13,6 +13,8 @@
 #include "peer.h"
 #include "peer-seeder.h"
 
+#define DATA_PAYLOAD_LEN 1024
+
 
 typedef struct _leecher_t {
     bt_peer_t* peer;
@@ -86,9 +88,9 @@ void send_next_data_packet(leecher_t* leecher, int sock)
     uint8_t* packet = make_empty_packet();
     make_generic_header(packet);
     set_packet_type(packet, PTYPE_DATA);
-    uint64_t offset = (uint64_t) leecher->next_packet * MAX_PAYLOAD_LEN;
-    uint64_t to_read = fmin(MAX_PAYLOAD_LEN, leecher->remaining_bytes);
-    set_payload(packet, leecher->data + offset, to_read);
+    uint64_t offset = (uint64_t) leecher->next_packet * DATA_PAYLOAD_LEN;
+    uint64_t bytes = fmin(DATA_PAYLOAD_LEN, leecher->remaining_bytes);
+    set_payload(packet, leecher->data + offset, bytes);
     set_seq_no(packet, leecher->next_packet);
     send_packet(sock, packet, &leecher->peer->addr);
     free(packet);
@@ -154,7 +156,7 @@ void handle_GET(PACKET_ARGS)
     leecher->seed_chunk = seed_chunk;
     leecher->next_packet = 0;
     leecher->remaining_bytes = BT_CHUNK_SIZE;
-    leecher->total_packets = ceil((double) leecher->remaining_bytes / MAX_PAYLOAD_LEN);
+    leecher->total_packets = ceil((double) leecher->remaining_bytes / DATA_PAYLOAD_LEN);
     DPRINTF(DEBUG_SEEDER, "Seeding chunk %d (%s) to leecher %d\n",
             leecher->seed_chunk->id, leecher->seed_chunk->hash_str_short, leecher->peer->id);
     
@@ -199,10 +201,10 @@ void handle_ACK(PACKET_ARGS)
                 ack_no,
                 leecher->total_packets);
         // More data packets to send
-        if (leecher->remaining_bytes > MAX_PAYLOAD_LEN)
+        if (leecher->remaining_bytes > DATA_PAYLOAD_LEN)
         {
             leecher->next_packet += 1;
-            leecher->remaining_bytes -= MAX_PAYLOAD_LEN;
+            leecher->remaining_bytes -= DATA_PAYLOAD_LEN;
             send_next_data_packet(leecher, sock);
             DPRINTF(DEBUG_SEEDER_RELIABLE, "%3d/%d DATA sent\n",
                     leecher->next_packet,

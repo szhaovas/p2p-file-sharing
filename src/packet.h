@@ -65,7 +65,6 @@ LinkedList* get_hashes(uint8_t* packet);
 uint8_t* get_payload(uint8_t* packet);
 uint16_t get_payload_len(uint8_t* packet);
 
-int validate_packet(uint8_t* packet, uint16_t magic_no, uint8_t version);
 uint8_t* make_empty_packet(void);
 LinkedList* make_hash_packets(LinkedList** chunks_ptr);
 void print_packet_header(int debug, uint8_t* packet);

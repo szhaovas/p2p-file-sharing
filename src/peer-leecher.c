@@ -23,7 +23,6 @@ typedef struct _seeder_t {
 /* Download object for each chunk */
 typedef struct _download_t {
     uint32_t next_packet;
-    uint32_t total_packets;
     uint64_t remaining_bytes;
     chunk_t* chunk;
     uint8_t data[BT_CHUNK_SIZE];
@@ -75,7 +74,6 @@ void send_get_packet(download_t* dl, seeder_t* seeder, int sock)
 {
     dl->next_packet = 0;
     dl->remaining_bytes = BT_CHUNK_SIZE;
-    dl->total_packets = ceil((double) dl->remaining_bytes / MAX_PAYLOAD_LEN);
     uint8_t* packet = make_empty_packet();
     make_generic_header(packet);
     set_packet_type(packet, PTYPE_GET);
@@ -209,20 +207,20 @@ void handle_DATA(PACKET_ARGS)
     
     download_t* dl = get_head(seeder->download_queue);
     Node* dl_node  = get_head_node(seeder->download_queue);
+    
+    // FIXME: what to do if we receive more data than expected?
+    assert(dl->remaining_bytes >= payload_len);
+    
     if (seq_no == dl->next_packet) // We expect this DATA packet
     {
-        // FIXME: Make sure this packet looks good
-        DPRINTF(DEBUG_LEECHER_RELIABLE, "%3d/%d DATA received\n", seq_no, dl->total_packets);
+        DPRINTF(DEBUG_LEECHER_RELIABLE, "%3d DATA received\n", seq_no);
         
         send_ack_packet(seeder, seq_no, sock);
-        DPRINTF(DEBUG_LEECHER_RELIABLE, "%3d/%d ACK sent\n", get_ack_no(packet), dl->total_packets);
+        DPRINTF(DEBUG_LEECHER_RELIABLE, "%3d ACK sent\n", get_ack_no(packet));
         
         // Copy payload data to local buffer
-        size_t offset = seq_no * MAX_PAYLOAD_LEN;
-        memcpy(dl->data + offset, payload, MAX_PAYLOAD_LEN);
-        
-        // FIXME: allow non-maximal-size DATA packets
-        assert(dl->remaining_bytes >= payload_len);
+        size_t offset = BT_CHUNK_SIZE - dl->remaining_bytes;
+        memcpy(dl->data + offset, payload, payload_len);
         dl->remaining_bytes -= payload_len;
         dl->next_packet += 1;
         
