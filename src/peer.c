@@ -312,12 +312,19 @@ void peer_run(bt_config_t* config) {
 
     while (1) {
         int nfds;
+        FD_ZERO(&readfds);
         FD_SET(STDIN_FILENO, &readfds);
         FD_SET(sock, &readfds);
-
-        nfds = select(sock+1, &readfds, NULL, NULL, NULL);
+        struct timeval timeout = {1, 0};
+        
+        nfds = select(sock+1, &readfds, NULL, NULL, &timeout);
+        printf(".");
+        fflush(stdout);
 
         if (nfds > 0) {
+            printf("\n");
+            fflush(stdout);
+            
             if (FD_ISSET(sock, &readfds)) {
                 process_inbound_udp(sock);
             }
