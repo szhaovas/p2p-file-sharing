@@ -32,7 +32,8 @@ typedef struct _download_t {
 // Chunks that need a seeder
 LinkedList* pending_chunks = NULL;
 int pending_ihave = 0;
-LinkedList* seeder_list = NULL;
+LinkedList* seeder_waitlist = NULL;
+LinkedList* active_seeders  = NULL;
 
 
 /**
@@ -40,9 +41,22 @@ LinkedList* seeder_list = NULL;
  */
 void flood_WHOHAS(LinkedList* missing_chunks, bt_config_t* config)
 {
+    if (pending_chunks)
+    {
+        perror("Already have an ongoing download");
+        ITER_LOOP(missing_chunks_it, missing_chunks)
+        {
+            free(iter_drop_curr(missing_chunks_it));
+        }
+        ITER_END(missing_chunks_it);
+        return;
+    }
+    
     // Record chunks that need a seeder
     pending_chunks = missing_chunks;
     pending_ihave = pending_chunks->size;
+    active_seeders = new_list();
+    seeder_waitlist = new_list();
     
     // Construct WHOHAS packets
     LinkedList* packets = make_hash_packets(&pending_chunks);
@@ -96,6 +110,17 @@ void send_ack_packet(seeder_t* seeder, uint32_t ack_no, int sock)
 }
 
 
+void activate_a_seeder(bt_config_t* config)
+{
+    assert(active_seeders->size < config->max_conn);
+    assert(seeder_waitlist->size > 0);
+    seeder_t* seeder = drop_head(seeder_waitlist);
+    insert_tail(active_seeders, seeder);
+    download_t* dl = get_head(seeder->download_queue);
+    send_get_packet(dl, seeder, config->sock);
+}
+
+
 /**
  Handle IHAVE replies.
  */
@@ -109,10 +134,9 @@ void handle_IHAVE(PACKET_ARGS)
     }
     
     LinkedList* hashes = get_hashes(payload);
-    if (!seeder_list) seeder_list = new_list();
     // Look for the IHAVE sender in the seeder list
     seeder_t* seeder = NULL;
-    ITER_LOOP(seeder_it, seeder_list)
+    ITER_LOOP(seeder_it, seeder_waitlist)
     {
         seeder_t* peer_dl = iter_get_item(seeder_it);
         if (peer_dl->peer->id == from->id)
@@ -126,7 +150,7 @@ void handle_IHAVE(PACKET_ARGS)
         seeder = malloc(sizeof(seeder_t));
         seeder->peer = from;
         seeder->download_queue = new_list();
-        insert_tail(seeder_list, seeder);
+        insert_tail(seeder_waitlist, seeder);
         DPRINTF(DEBUG_LEECHER, "Found a new seeder (#%d)\n", seeder->peer->id);
     }
     DPRINTF(DEBUG_LEECHER, "Available data hashes from seeder %d\n", seeder->peer->id);
@@ -166,16 +190,11 @@ void handle_IHAVE(PACKET_ARGS)
     if (pending_ihave == 0)
     {
         DPRINTF(DEBUG_LEECHER, "All IHAVE replies have been received. Start sending GET\n\n");
-        // FIXME: send GET to only |max_conn| number of seeders
-        ITER_LOOP(seeder_list_it, seeder_list)
+        int num_active_seeders = fmin(config->max_conn, seeder_waitlist->size);
+        for (int i = 0; i < num_active_seeders; i++)
         {
-            seeder_t* seeder = iter_get_item(seeder_list_it);
-            // Start downloading from the top of the list
-            download_t* dl = get_head(seeder->download_queue);
-            // Send GET to this seeder
-            send_get_packet(dl, seeder, sock);
+            activate_a_seeder(config);
         }
-        ITER_END(seeder_list_it);
     }
     DPRINTF(DEBUG_LEECHER, "\n");
 }
@@ -183,10 +202,10 @@ void handle_IHAVE(PACKET_ARGS)
 
 void handle_DATA(PACKET_ARGS)
 {
-    // See if the sender is actually a registered seeder
+    // See if the sender is actually an active seeder
     seeder_t* seeder = NULL;
     Node* seeder_node = NULL;
-    ITER_LOOP(seeder_it, seeder_list)
+    ITER_LOOP(seeder_it, active_seeders)
     {
         seeder_t* s = iter_get_item(seeder_it);
         if (s->peer->id == from->id)
@@ -284,12 +303,14 @@ void handle_DATA(PACKET_ARGS)
                     // Send GET (next chunk in the download queue) to this seeder
                     send_get_packet(get_head(seeder->download_queue), seeder, config->sock);
                 }
-                // We got everything we needed from this seeder
+                // We got everything we needed from this seeder => deactivate and remove this seeder
                 else
                 {
                     DPRINTF(DEBUG_LEECHER, "No more downloads from seeder %d\n", seeder->peer->id);
                     delete_empty_list(seeder->download_queue);
-                    free(drop_node(seeder_list, seeder_node));
+                    free(drop_node(active_seeders, seeder_node));
+                    if (seeder_waitlist->size > 0)
+                        activate_a_seeder(config);
                 }
             }
         DPRINTF(DEBUG_LEECHER, "\n");
