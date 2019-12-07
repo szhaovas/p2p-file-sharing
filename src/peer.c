@@ -323,15 +323,15 @@ void peer_run(bt_config_t* config) {
         FD_ZERO(&readfds);
         FD_SET(STDIN_FILENO, &readfds);
         FD_SET(sock, &readfds);
-        struct timeval timeout = {1, 0};
+        struct timeval timeout = {0, 500 * 1000};
         
         nfds = select(sock+1, &readfds, NULL, NULL, &timeout);
-        printf(".");
-        fflush(stdout);
+//        printf(".");
+//        fflush(stdout);
 
         if (nfds > 0) {
-            printf("\n");
-            fflush(stdout);
+//            printf("\n");
+//            fflush(stdout);
             
             if (FD_ISSET(sock, &readfds)) {
                 process_inbound_udp(sock);
@@ -341,6 +341,11 @@ void peer_run(bt_config_t* config) {
                 process_user_input(STDIN_FILENO, userbuf, handle_user_input,
                                    "Currently unused");
             }
+        }
+        else
+        {
+            seeder_timeout(config);
+            leecher_timeout(config);
         }
     }
 }

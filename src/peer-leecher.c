@@ -5,6 +5,7 @@
 #include <math.h>
 #include <string.h> // memcmp()
 #include <stdlib.h> // malloc()
+#include <sys/time.h>
 #include "bt_parse.h"
 #include "chunk.h"
 #include "debug.h"
@@ -12,10 +13,18 @@
 #include "packet.h"
 #include "peer.h"
 #include "peer-leecher.h"
+#include "peer-reliable.h"
+
+
+#define AWAIT_NONE  0
+#define AWAIT_IHAVE 1
+#define AWAIT_DATA  2
 
 
 /* A seeder is a peer from whom we download a list of chunks */
 typedef struct _seeder_t {
+    int attempts;
+    uint64_t last_active;
     bt_peer_t* peer;
     LinkedList* download_queue;
 } seeder_t;
@@ -28,10 +37,12 @@ typedef struct _download_t {
     uint8_t data[BT_CHUNK_SIZE];
 } download_t;
 
-
-// Chunks that need a seeder
-LinkedList* pending_chunks = NULL;
+int state = AWAIT_NONE;
 int pending_ihave = 0;
+int whohas_attempts = 0;
+int get_attempts = 0;
+uint64_t whohas_last_active = 0;
+LinkedList* pending_chunks = NULL;
 LinkedList* seeder_waitlist = NULL;
 LinkedList* active_seeders  = NULL;
 
@@ -69,10 +80,15 @@ void get_chunks(LinkedList* missing_chunks, bt_config_t* config)
         DPRINTF(DEBUG_LEECHER, "Retry failed downloads (attempt %d)\n", get_attempts);
     }
     
+    get_attempts += 1;
+    
+    assert(!active_seeders && !seeder_waitlist && state == AWAIT_NONE);
+    state = AWAIT_IHAVE;
     pending_ihave = pending_chunks->size;
     active_seeders = new_list();
     seeder_waitlist = new_list();
     
+    whohas_attempts = 0;
     flood_WHOHAS(config);
 }
 
@@ -104,6 +120,9 @@ void flood_WHOHAS(bt_config_t* config)
     }
     ITER_END(packets_it);
     delete_empty_list(packets);
+    
+    whohas_attempts += 1;
+    whohas_last_active = get_time();
 }
 
 
@@ -119,6 +138,8 @@ void send_get_packet(download_t* dl, seeder_t* seeder, int sock)
     DPRINTF(DEBUG_LEECHER, "GET chunk %i (%s) from seeder %d\n",
             dl->chunk->id, dl->chunk->hash_str_short, seeder->peer->id);
     free(packet);
+    seeder->attempts += 1;
+    seeder->last_active = get_time();
 }
 
 
@@ -130,6 +151,8 @@ void send_ack_packet(seeder_t* seeder, uint32_t ack_no, int sock)
     set_ack_no(packet, ack_no);
     send_packet(sock, packet, &seeder->peer->addr);
     free(packet);
+    seeder->attempts += 1;
+    seeder->last_active = get_time();
 }
 
 
@@ -140,8 +163,10 @@ void activate_one_seeder(bt_config_t* config)
     seeder_t* seeder = drop_head(seeder_waitlist);
     insert_tail(active_seeders, seeder);
     download_t* dl = get_head(seeder->download_queue);
+    seeder->attempts = 0;
     send_get_packet(dl, seeder, config->sock);
 }
+
 
 
 /**
@@ -199,6 +224,7 @@ void handle_IHAVE(PACKET_ARGS)
                 // Mark this chunk as no longer pending
                 iter_drop_curr(pending_chunks_it);
                 pending_ihave -= 1;
+                whohas_last_active = get_time();
                 DPRINTF(DEBUG_LEECHER, "Will download chunk %d (%s) from seeder #%d\n",
                         dl->chunk->id,
                         dl->chunk->hash_str_short,
@@ -215,6 +241,7 @@ void handle_IHAVE(PACKET_ARGS)
     if (pending_ihave == 0)
     {
         DPRINTF(DEBUG_LEECHER, "All IHAVE replies have been received. Start sending GET\n\n");
+        state = AWAIT_DATA;
         int num_active_seeders = fmin(config->max_conn, seeder_waitlist->size);
         for (int i = 0; i < num_active_seeders; i++)
         {
@@ -311,6 +338,7 @@ void handle_DATA(PACKET_ARGS)
         
         // Ack
         dl->expect_packet += 1;
+        seeder->attempts = 0;
         send_ack_packet(seeder, dl->expect_packet, config->sock);
         DPRINTF(DEBUG_LEECHER_RELIABLE, "%3d ACK sent\n", dl->expect_packet);
         
@@ -352,6 +380,7 @@ void handle_DATA(PACKET_ARGS)
                 if (seeder->download_queue->size > 0)
                 {
                     // Send GET (next chunk in the download queue) to this seeder
+                    seeder->attempts = 0;
                     send_get_packet(get_head(seeder->download_queue), seeder, config->sock);
                 }
                 // We got everything we needed from this seeder => deactivate and remove this seeder
@@ -368,6 +397,7 @@ void handle_DATA(PACKET_ARGS)
                         if (active_seeders->size == 0)
                         {
                             delete_empty_list(active_seeders);
+                            state = AWAIT_NONE;
                             if (pending_chunks->size > 0)
                             {
                                 get_chunks(NULL, config);
@@ -384,3 +414,118 @@ void handle_DATA(PACKET_ARGS)
 
 void handle_DENIED(PACKET_ARGS)
 {}
+
+
+void clean()
+{
+    state = AWAIT_NONE;
+    pending_ihave = 0;
+    whohas_attempts = 0;
+    whohas_last_active = 0;
+    
+    ITER_LOOP(pending_chunks_it, pending_chunks)
+    {
+        free(iter_drop_curr(pending_chunks_it));
+    }
+    ITER_END(pending_chunks_it);
+    
+    ITER_LOOP(active_seeders_it, active_seeders)
+    {
+        seeder_t* seeder = iter_get_item(active_seeders_it);
+        ITER_LOOP(dl_it, seeder->download_queue)
+        {
+            download_t* dl = iter_get_item(dl_it);
+            free(dl->chunk);
+            free(iter_drop_curr(dl_it));
+        }
+        ITER_END(dl_it);
+        free(iter_drop_curr(active_seeders_it));
+    }
+    ITER_END(active_seeders_it);
+    
+    ITER_LOOP(seeder_waitlist_it, seeder_waitlist)
+    {
+        seeder_t* seeder = iter_get_item(seeder_waitlist_it);
+        ITER_LOOP(dl_it, seeder->download_queue)
+        {
+            download_t* dl = iter_get_item(dl_it);
+            free(dl->chunk);
+            free(iter_drop_curr(dl_it));
+        }
+        ITER_END(dl_it);
+        free(iter_drop_curr(seeder_waitlist_it));
+    }
+    ITER_END(seeder_waitlist_it);
+    
+    delete_empty_list(pending_chunks);
+    delete_empty_list(active_seeders);
+    delete_empty_list(seeder_waitlist);
+    pending_chunks = NULL;
+    seeder_waitlist = NULL;
+    active_seeders  = NULL;
+}
+
+
+void leecher_timeout(bt_config_t* config)
+{
+    switch (state) {
+        case AWAIT_IHAVE:
+        {
+            uint64_t now = get_time();
+            assert(now > whohas_last_active);
+            if (whohas_attempts >= WHOHAS_RETRY)
+            {
+                DPRINTF(DEBUG_LEECHER, "AWAIT_IHAVE reached attempts limit (%d/%d)\n",
+                        whohas_attempts, WHOHAS_RETRY);
+                perror("Could not gather all IHAVE packets");
+                clean();
+            }
+            else if (now - whohas_last_active > WHOHAS_TIMEOUT)
+            {
+                DPRINTF(DEBUG_LEECHER, "AWAIT_IHAVE timeout. Retry...\n");
+                flood_WHOHAS(config);
+            }
+            break;
+        }
+            
+        case AWAIT_DATA:
+        {
+            ITER_LOOP(active_seeder_it, active_seeders)
+            {
+                seeder_t* seeder = iter_get_item(active_seeder_it);
+                uint64_t now = get_time();
+                assert(now > seeder->last_active);
+                if (seeder->attempts >= RELIABLE_RETRY)
+                {
+                    DPRINTF(DEBUG_LEECHER, "Seeder %d reached attempts limit (%d/%d)\n",
+                            seeder->peer->id, seeder->attempts, RELIABLE_RETRY);
+                    perror("Download failed. Will attempts later");
+                    // Move the chunks for which this seeder is responsible to the pending list
+                    ITER_LOOP(dl_it, seeder->download_queue)
+                    {
+                        insert_tail(pending_chunks, iter_drop_curr(dl_it));
+                    }
+                    ITER_END(dl_it);
+                    delete_empty_list(seeder->download_queue);
+                    // Remove this seeder completely
+                    free(iter_drop_curr(active_seeder_it));
+                    // Promote a waitlisted seeder, if any, to the active list
+                    if (seeder_waitlist->size > 0)
+                        activate_one_seeder(config);
+                }
+                else if (now - seeder->last_active > RELIABLE_TIMEOUT)
+                {
+                    DPRINTF(DEBUG_LEECHER, "Seeder %d download timeout. Retry...\n", seeder->peer->id);
+                    download_t* dl = get_head(seeder->download_queue);
+                    send_ack_packet(seeder, dl->expect_packet, config->sock);
+                }
+            }
+            ITER_END(active_seeder_it);
+            break;
+        }
+            
+        default:
+            break;
+    }
+}
+

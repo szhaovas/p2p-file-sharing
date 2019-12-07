@@ -2,9 +2,11 @@
 //  peer-seeder.c
 //
 
+#include <assert.h>
 #include <math.h>
 #include <string.h> // memcmp()
 #include <stdlib.h> // malloc()
+#include <sys/time.h> // gettimeofday()
 #include "bt_parse.h"
 #include "chunk.h"
 #include "debug.h"
@@ -12,6 +14,7 @@
 #include "packet.h"
 #include "peer.h"
 #include "peer-seeder.h"
+#include "peer-reliable.h"
 
 #define DATA_PAYLOAD_LEN 1024
 
@@ -23,6 +26,8 @@ typedef struct _leecher_t {
     uint32_t total_packets;
     uint64_t remaining_bytes;
     uint8_t data[BT_CHUNK_SIZE];
+    uint64_t last_active;
+    int attempts;
 } leecher_t;
 
 LinkedList* leecher_list = NULL;
@@ -94,6 +99,12 @@ void send_next_data_packet(leecher_t* leecher, int sock)
     set_seq_no(packet, leecher->next_packet);
     send_packet(sock, packet, &leecher->peer->addr);
     free(packet);
+    
+    leecher->attempts += 1;
+    leecher->last_active = get_time();
+}
+
+
 int read_data(leecher_t* leecher, bt_config_t* config)
 {
     int rc = 0;
@@ -169,6 +180,7 @@ void handle_GET(PACKET_ARGS)
     leecher->next_packet = 0;
     leecher->remaining_bytes = BT_CHUNK_SIZE;
     leecher->total_packets = ceil((double) leecher->remaining_bytes / DATA_PAYLOAD_LEN);
+    leecher->attempts = 0;
     // Read chunk data into the buffer
     if (read_data(leecher, config) < 0)
     {
@@ -214,11 +226,13 @@ void handle_ACK(PACKET_ARGS)
         DPRINTF(DEBUG_SEEDER_RELIABLE, "%3d/%d ACK received\n",
                 ack_no,
                 leecher->total_packets);
+        leecher->last_active = get_time();
         // More data packets to send
         if (leecher->remaining_bytes > DATA_PAYLOAD_LEN)
         {
             leecher->next_packet += 1;
             leecher->remaining_bytes -= DATA_PAYLOAD_LEN;
+            leecher->attempts = 0;
             send_next_data_packet(leecher, config->sock);
             DPRINTF(DEBUG_SEEDER_RELIABLE, "%3d/%d DATA sent\n",
                     leecher->next_packet,
@@ -249,4 +263,34 @@ void handle_ACK(PACKET_ARGS)
         DPRINTF(DEBUG_SEEDER, "Did not expect ack_no=%d\n", ack_no);
     }
 }
+
+
+void seeder_timeout(bt_config_t* config)
+{
+    if (!leecher_list) return;
+    struct timeval now;
+    gettimeofday(&now, NULL);
+    ITER_LOOP(leecher_it, leecher_list)
+    {
+        leecher_t* leecher = iter_get_item(leecher_it);
+        uint64_t now = get_time();
+        uint64_t last_active = leecher->last_active;
+        assert (last_active < get_time());
+        if (now - last_active > RELIABLE_TIMEOUT)
+        {
+            DPRINTF(DEBUG_SEEDER, "Leecher %d timeout triggered (%llu)\n", leecher->peer->id, now-last_active);
+            if (leecher->attempts >= RELIABLE_RETRY)
+            {
+                DPRINTF(DEBUG_SEEDER, "Leecher %d reached attempts limit (%d/%d)\n",
+                leecher->peer->id, leecher->attempts, RELIABLE_RETRY);
+                free(iter_drop_curr(leecher_it));
+            }
+            else
+            {
+                DPRINTF(DEBUG_SEEDER, "Retry (attempt %d/%d)\n", leecher->attempts, RELIABLE_RETRY);
+                send_next_data_packet(leecher, config->sock);
+            }
+        }
+    }
+    ITER_END(leecher_it);
 }

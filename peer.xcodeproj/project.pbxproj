@@ -14,6 +14,7 @@
 		BF34CE4823898F6C00DABAEB /* chunk.c in Sources */ = {isa = PBXBuildFile; fileRef = BF34CE3823898F6C00DABAEB /* chunk.c */; };
 		BF34CE4923898F6C00DABAEB /* sha.c in Sources */ = {isa = PBXBuildFile; fileRef = BF34CE3923898F6C00DABAEB /* sha.c */; };
 		BF34CE4A23898F6C00DABAEB /* bt_parse.c in Sources */ = {isa = PBXBuildFile; fileRef = BF34CE3E23898F6C00DABAEB /* bt_parse.c */; };
+		BFD41748239BEC5F0068E654 /* peer-reliable.c in Sources */ = {isa = PBXBuildFile; fileRef = BFD41747239BEC5F0068E654 /* peer-reliable.c */; };
 		BFDFC51923933DAD0074158B /* peer-leecher.c in Sources */ = {isa = PBXBuildFile; fileRef = BFDFC51823933DAD0074158B /* peer-leecher.c */; };
 		BFDFC51C23933DD80074158B /* peer-seeder.c in Sources */ = {isa = PBXBuildFile; fileRef = BFDFC51B23933DD80074158B /* peer-seeder.c */; };
 		BFE6457D2389905A008D09BB /* make_chunks.c in Sources */ = {isa = PBXBuildFile; fileRef = BF34CE2723898F6C00DABAEB /* make_chunks.c */; };
@@ -90,6 +91,8 @@
 		BF34CE3D23898F6C00DABAEB /* SPIFFY_MANUAL */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = SPIFFY_MANUAL; sourceTree = "<group>"; };
 		BF34CE3E23898F6C00DABAEB /* bt_parse.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = bt_parse.c; sourceTree = "<group>"; };
 		BF990C09238DFBA700A7E07B /* peer.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = peer.h; sourceTree = "<group>"; };
+		BFD41746239ADD4A0068E654 /* peer-reliable.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "peer-reliable.h"; sourceTree = "<group>"; };
+		BFD41747239BEC5F0068E654 /* peer-reliable.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = "peer-reliable.c"; sourceTree = "<group>"; };
 		BFDFC51723933DAD0074158B /* peer-leecher.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "peer-leecher.h"; sourceTree = "<group>"; };
 		BFDFC51823933DAD0074158B /* peer-leecher.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = "peer-leecher.c"; sourceTree = "<group>"; };
 		BFDFC51A23933DD80074158B /* peer-seeder.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "peer-seeder.h"; sourceTree = "<group>"; };
@@ -163,6 +166,8 @@
 				BFDFC51823933DAD0074158B /* peer-leecher.c */,
 				BFDFC51A23933DD80074158B /* peer-seeder.h */,
 				BFDFC51B23933DD80074158B /* peer-seeder.c */,
+				BFD41746239ADD4A0068E654 /* peer-reliable.h */,
+				BFD41747239BEC5F0068E654 /* peer-reliable.c */,
 				BFE645962389C798008D09BB /* packet.h */,
 				BFE645972389C798008D09BB /* packet.c */,
 				BF34CE2F23898F6C00DABAEB /* Makefile */,
@@ -322,6 +327,7 @@
 				BF34CE4123898F6C00DABAEB /* spiffy.c in Sources */,
 				BFE6459C2389E3BD008D09BB /* peer.c in Sources */,
 				BF34CE4223898F6C00DABAEB /* Makefile in Sources */,
+				BFD41748239BEC5F0068E654 /* peer-reliable.c in Sources */,
 				BFE6459B2389DD51008D09BB /* linked-list.c in Sources */,
 				BF34CE4823898F6C00DABAEB /* chunk.c in Sources */,
 				BF34CE4623898F6C00DABAEB /* debug.c in Sources */,
