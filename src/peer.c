@@ -226,14 +226,22 @@ void process_get(char* chunkfile, char* outputfile) {
         }
     }
     ITER_END(missing_chunks_it);
-    if (missing_chunks->size > 0)
+    if (missing_chunks->size == 0 || ongoing_jobs_exist())
     {
-        DPRINTF(DEBUG_CMD_GET, "WHOHAS flooding\n");
-        flood_WHOHAS(missing_chunks, &config);
+        if (missing_chunks->size == 0)
+            perror("Already have everything");
+        else
+            perror("Already have an ongoing download");
+        // Free missing chunks
+        ITER_LOOP(missing_chunks_it, missing_chunks)
+        {
+            free(iter_drop_curr(missing_chunks_it));
+        }
+        ITER_END(missing_chunks_it);
     }
     else
     {
-        DPRINTF(DEBUG_CMD_GET, "No need for WHOHAS since already have everything\n");
+        get_chunks(missing_chunks, &config);
     }
 }
 

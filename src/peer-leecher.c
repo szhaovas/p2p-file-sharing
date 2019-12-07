@@ -36,27 +36,42 @@ LinkedList* seeder_waitlist = NULL;
 LinkedList* active_seeders  = NULL;
 
 
+void flood_WHOHAS(bt_config_t* config);
 /**
- Flood the P2P network with WHOHAS packets containing missing chunk hashes.
+ See if there's an ongoing download.
  */
-void flood_WHOHAS(LinkedList* missing_chunks, bt_config_t* config)
+int ongoing_jobs_exist()
 {
-    if (pending_chunks)
+    return pending_chunks != NULL;
+}
+
+
+/**
+ Download missing chunk.
+ */
+void get_chunks(LinkedList* missing_chunks, bt_config_t* config)
+{
+    if (!pending_chunks)
     {
-        perror("Already have an ongoing download");
-        ITER_LOOP(missing_chunks_it, missing_chunks)
-        {
-            free(iter_drop_curr(missing_chunks_it));
-        }
-        ITER_END(missing_chunks_it);
-        return;
+        DPRINTF(DEBUG_LEECHER, "New GET command from the user (attempt %d)\n", get_attempts);
+        pending_chunks = missing_chunks;
+    }
+    else
+    {
+        DPRINTF(DEBUG_LEECHER, "Retry failed downloads (attempt %d)\n", get_attempts);
     }
     
-    // Record chunks that need a seeder
-    pending_chunks = missing_chunks;
     pending_ihave = pending_chunks->size;
     active_seeders = new_list();
     seeder_waitlist = new_list();
+    
+    flood_WHOHAS(config);
+}
+
+
+void flood_WHOHAS(bt_config_t* config)
+{
+    DPRINTF(DEBUG_LEECHER, "Flood WHOHAS (attempt %d)\n", whohas_attempts);
     
     // Construct WHOHAS packets
     LinkedList* packets = make_hash_packets(&pending_chunks);

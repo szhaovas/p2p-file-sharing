@@ -331,6 +331,8 @@ void print_packet_header(int debug, uint8_t* packet)
     print_packet_header_to_str(packet, str);
     DPRINTF(debug, "%s", str);
 }
+
+
 void print_hash_payload(int debug, uint8_t* packet)
 {
     char str[MAX_PACKET_LEN*100];
