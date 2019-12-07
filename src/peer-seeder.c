@@ -88,12 +88,24 @@ void send_next_data_packet(leecher_t* leecher, int sock)
     uint8_t* packet = make_empty_packet();
     make_generic_header(packet);
     set_packet_type(packet, PTYPE_DATA);
-    uint64_t offset = (uint64_t) leecher->next_packet * DATA_PAYLOAD_LEN;
+    uint64_t offset = BT_CHUNK_SIZE - leecher->remaining_bytes;
     uint64_t bytes = fmin(DATA_PAYLOAD_LEN, leecher->remaining_bytes);
     set_payload(packet, leecher->data + offset, bytes);
     set_seq_no(packet, leecher->next_packet);
     send_packet(sock, packet, &leecher->peer->addr);
     free(packet);
+int read_data(leecher_t* leecher, bt_config_t* config)
+{
+    int rc = 0;
+    FILE* fp = fopen(config->data_file, "r");
+    if (!fp)
+        rc = -1;
+    if (fseek(fp, leecher->seed_chunk->id * BT_CHUNK_SIZE, SEEK_SET) < 0)
+        rc = -1;
+    if (fread(leecher->data, sizeof(uint8_t), BT_CHUNK_SIZE, fp) != BT_CHUNK_SIZE)
+        rc = -1;
+    fclose(fp);
+    return rc;
 }
 
 
@@ -149,24 +161,26 @@ void handle_GET(PACKET_ARGS)
         return;
     }
     
-    
-    // Send first data packet
+    // Initialize leecher
     leecher = malloc(sizeof(leecher_t));
+    memset(leecher, '\0', sizeof(leecher_t));
     leecher->peer = from;
     leecher->seed_chunk = seed_chunk;
     leecher->next_packet = 0;
     leecher->remaining_bytes = BT_CHUNK_SIZE;
     leecher->total_packets = ceil((double) leecher->remaining_bytes / DATA_PAYLOAD_LEN);
+    // Read chunk data into the buffer
+    if (read_data(leecher, config) < 0)
+    {
+        free(leecher);
+        perror("Seeder could not read data chunk to seed");
+        // FIXME: send DENIED ?
+    }
+    insert_tail(leecher_list, leecher);
+    
+    // Send first data packet
     DPRINTF(DEBUG_SEEDER, "Seeding chunk %d (%s) to leecher %d\n",
             leecher->seed_chunk->id, leecher->seed_chunk->hash_str_short, leecher->peer->id);
-    
-    // Read chunk data into the buffer
-    FILE* fp = fopen(config->data_file, "r");
-    if (!fp) return; // FIXME: handle this error
-    fseek(fp, leecher->seed_chunk->id * BT_CHUNK_SIZE, SEEK_SET);
-    fread(leecher->data, sizeof(uint8_t), BT_CHUNK_SIZE, fp);
-    fclose(fp);
-    insert_tail(leecher_list, leecher);
     send_next_data_packet(leecher, config->sock);
 }
 

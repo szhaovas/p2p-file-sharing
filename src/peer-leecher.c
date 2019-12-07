@@ -37,6 +37,14 @@ LinkedList* active_seeders  = NULL;
 
 
 void flood_WHOHAS(bt_config_t* config);
+void send_get_packet(download_t* dl, seeder_t* seeder, int sock);
+void send_ack_packet(seeder_t* seeder, uint32_t ack_no, int sock);
+void activate_one_seeder(bt_config_t* config);
+int  commit_download_to_file(download_t* dl);
+int  download_hash_okay(download_t* dl);
+void clean(void);
+
+
 /**
  See if there's an ongoing download.
  */
@@ -125,7 +133,7 @@ void send_ack_packet(seeder_t* seeder, uint32_t ack_no, int sock)
 }
 
 
-void activate_a_seeder(bt_config_t* config)
+void activate_one_seeder(bt_config_t* config)
 {
     assert(active_seeders->size < config->max_conn);
     assert(seeder_waitlist->size > 0);
@@ -163,6 +171,7 @@ void handle_IHAVE(PACKET_ARGS)
     if (!seeder)
     {
         seeder = malloc(sizeof(seeder_t));
+        memset(seeder, '\0', sizeof(seeder_t));
         seeder->peer = from;
         seeder->download_queue = new_list();
         insert_tail(seeder_waitlist, seeder);
@@ -183,6 +192,7 @@ void handle_IHAVE(PACKET_ARGS)
             {
                 // Decide to download this chunk from the seeder
                 download_t* dl = malloc(sizeof(download_t));
+                memset(dl, '\0', sizeof(download_t));
                 dl->chunk = pending_chunk;
                 // Add the download object to the peer's download list
                 insert_tail(seeder->download_queue, dl);
@@ -212,6 +222,44 @@ void handle_IHAVE(PACKET_ARGS)
         }
     }
     DPRINTF(DEBUG_LEECHER, "\n");
+}
+
+
+int commit_download_to_file(download_t* dl)
+{
+    int rc = 0;
+    FILE* output = fopen(dl->chunk->data_file, "a");
+    if (!output)
+    {
+        perror("Could not open data file to write downloaded chunk");
+        rc = -1;
+    }
+    if (fseek(output, BT_CHUNK_SIZE * dl->chunk->id, SEEK_SET) < 0)
+    {
+        perror("Could not seek to desired offset in data file");
+        rc = -1;
+    }
+    ssize_t bytes = fwrite(dl->data, sizeof(uint8_t), sizeof(dl->data), output);
+    if (bytes != sizeof(dl->data))
+    {
+        perror("Could not write downloaded chunk to data file");
+        rc = -1;
+    }
+    fclose(output);
+    return rc;
+}
+
+
+int download_hash_okay(download_t* dl)
+{
+    // Checksum downloaded chunk
+    uint8_t hash_checksum[SHA1_HASH_SIZE+1];
+    shahash(dl->data, sizeof(dl->data), hash_checksum);
+    DPRINTF(DEBUG_LEECHER, "Computed hash ");
+    print_short_hash_str(DEBUG_LEECHER, hash_checksum);
+    DPRINTF(DEBUG_LEECHER, ", expecting %s\n", dl->chunk->hash_str_short);
+    
+    return !memcmp(hash_checksum, dl->chunk->hash, SHA1_HASH_SIZE);
 }
 
 
@@ -267,42 +315,22 @@ void handle_DATA(PACKET_ARGS)
                     dl->chunk->hash_str_short,
                     seeder->peer->id);
             
-            // Checksum downloaded chunk
-            uint8_t hash_checksum[SHA1_HASH_SIZE+1];
-            shahash(dl->data, sizeof(dl->data), hash_checksum);
-            DPRINTF(DEBUG_LEECHER, "Computed hash ");
-            print_short_hash_str(DEBUG_LEECHER, hash_checksum);
-            DPRINTF(DEBUG_LEECHER, ", expecting %s\n", dl->chunk->hash_str_short);
-            // GET the chunk again if checksum failed
-            if (memcmp(hash_checksum, dl->chunk->hash, SHA1_HASH_SIZE))
+            if (!download_hash_okay(dl))
             {
                 DPRINTF(DEBUG_LEECHER, "Checksum failed. Re-download chunk %d (%s) from seeder %d\n",
                         dl->chunk->id, dl->chunk->hash_str_short, seeder->peer->id);
                 send_get_packet(dl, seeder, config->sock);
             }
-            else // Checksum passed
+            else // Hash okay
             {
                 DPRINTF(DEBUG_LEECHER, "Checksum passed. Writing downloaded chunk %d to data file: %s\n",
                         dl->chunk->id, dl->chunk->data_file);
-                // Commit downloaded chunk to disk
-                FILE* output = fopen(dl->chunk->data_file, "a");
-                if (!output)
+                // Failed to write to output file
+                if (commit_download_to_file(dl) < 0)
                 {
-                    perror("Could not open data file to write downloaded chunk");
-                    // FIXME: Do more!
+                    clean(); // FIXME: be more tolerant ?
+                    return;
                 }
-                if (fseek(output, BT_CHUNK_SIZE * dl->chunk->id, SEEK_SET) < 0)
-                {
-                    perror("Could not seek to desired offset in data file");
-                    // FIXME: Do more!
-                }
-                ssize_t bytes = fwrite(dl->data, sizeof(uint8_t), sizeof(dl->data), output);
-                if (bytes != sizeof(dl->data))
-                {
-                    perror("Could not write downloaded chunk to data file");
-                    // FIXME: Do more!
-                }
-                fclose(output);
                 
                 // Remove downloaded chunk from seeder's download list
                 // and add it to the list of owned chunks
@@ -325,7 +353,19 @@ void handle_DATA(PACKET_ARGS)
                     delete_empty_list(seeder->download_queue);
                     free(drop_node(active_seeders, seeder_node));
                     if (seeder_waitlist->size > 0)
-                        activate_a_seeder(config);
+                        activate_one_seeder(config);
+                    else
+                    {
+                        delete_empty_list(seeder_waitlist);
+                        if (active_seeders->size == 0)
+                        {
+                            delete_empty_list(active_seeders);
+                            if (pending_chunks->size > 0)
+                            {
+                                get_chunks(NULL, config);
+                            }
+                        }
+                    }
                 }
             }
         DPRINTF(DEBUG_LEECHER, "\n");
