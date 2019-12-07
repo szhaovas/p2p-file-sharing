@@ -22,7 +22,7 @@ typedef struct _seeder_t {
 
 /* Download object for each chunk */
 typedef struct _download_t {
-    uint32_t next_packet;
+    uint32_t expect_packet;
     uint64_t remaining_bytes;
     chunk_t* chunk;
     uint8_t data[BT_CHUNK_SIZE];
@@ -109,7 +109,7 @@ void flood_WHOHAS(bt_config_t* config)
 
 void send_get_packet(download_t* dl, seeder_t* seeder, int sock)
 {
-    dl->next_packet = 0;
+    dl->expect_packet = 0;
     dl->remaining_bytes = BT_CHUNK_SIZE;
     uint8_t* packet = make_empty_packet();
     make_generic_header(packet);
@@ -218,7 +218,7 @@ void handle_IHAVE(PACKET_ARGS)
         int num_active_seeders = fmin(config->max_conn, seeder_waitlist->size);
         for (int i = 0; i < num_active_seeders; i++)
         {
-            activate_a_seeder(config);
+            activate_one_seeder(config);
         }
     }
     DPRINTF(DEBUG_LEECHER, "\n");
@@ -290,23 +290,31 @@ void handle_DATA(PACKET_ARGS)
     download_t* dl = get_head(seeder->download_queue);
     Node* dl_node  = get_head_node(seeder->download_queue);
     
-    // FIXME: what to do if we receive more data than expected?
-    assert(dl->remaining_bytes >= payload_len);
+    DPRINTF(DEBUG_LEECHER_RELIABLE, "%3d DATA received\n", seq_no);
     
-    if (seq_no == dl->next_packet) // We expect this DATA packet
+    // Assume packet corruption has occurred and ask for retransimission if
+    // (1) we received more data than expected or
+    // (2) seq_no is wrong
+    if (dl->remaining_bytes < payload_len || seq_no != dl->expect_packet)
     {
-        DPRINTF(DEBUG_LEECHER_RELIABLE, "%3d DATA received\n", seq_no);
-        
-        send_ack_packet(seeder, seq_no, config->sock);
-        DPRINTF(DEBUG_LEECHER_RELIABLE, "%3d ACK sent\n", get_ack_no(packet));
-        
+        DPRINTF(DEBUG_LEECHER_RELIABLE, "* %3d DATA is corrupted. Dup ack_no=%d (attempts %d)\n",
+                seq_no, dl->expect_packet, seeder->attempts);
+        // Send duplicated ACK
+        send_ack_packet(seeder, dl->expect_packet, config->sock);
+    }
+    else // We expect this DATA packet
+    {
         // Copy payload data to local buffer
         size_t offset = BT_CHUNK_SIZE - dl->remaining_bytes;
         memcpy(dl->data + offset, payload, payload_len);
         dl->remaining_bytes -= payload_len;
-        dl->next_packet += 1;
         
-        // Last DATA packet received
+        // Ack
+        dl->expect_packet += 1;
+        send_ack_packet(seeder, dl->expect_packet, config->sock);
+        DPRINTF(DEBUG_LEECHER_RELIABLE, "%3d ACK sent\n", dl->expect_packet);
+        
+        // Last DATA packet is received
         if (dl->remaining_bytes == 0)
         {
             DPRINTF(DEBUG_SEEDER, "Last DATA received\n");
@@ -371,12 +379,7 @@ void handle_DATA(PACKET_ARGS)
         DPRINTF(DEBUG_LEECHER, "\n");
         }
     }
-    // Unexpected seq number
-    // FIXME: deal with this case !!!
-    else
-    {}
 }
-
 
 
 void handle_DENIED(PACKET_ARGS)

@@ -209,7 +209,7 @@ void handle_ACK(PACKET_ARGS)
         return;
     }
     
-    if (ack_no == leecher->next_packet)
+    if (ack_no == leecher->next_packet + 1)
     {
         DPRINTF(DEBUG_SEEDER_RELIABLE, "%3d/%d ACK received\n",
                 ack_no,
@@ -237,8 +237,16 @@ void handle_ACK(PACKET_ARGS)
             DPRINTF(DEBUG_SEEDER, "\n");
         }
     }
-    // Unexpected ack number
-    // FIXME: deal with this case !!!
+    // Duplicated ACK
+    else if (ack_no == leecher->next_packet)
+    {
+        DPRINTF(DEBUG_SEEDER_RELIABLE, "Retry (attempt %d/%d)\n", leecher->attempts, RELIABLE_RETRY);
+        send_next_data_packet(leecher, config->sock);
+    }
+    // Ignore unexpected ACK no
     else
-    {}
+    {
+        DPRINTF(DEBUG_SEEDER, "Did not expect ack_no=%d\n", ack_no);
+    }
+}
 }
