@@ -503,7 +503,9 @@ void leecher_timeout(bt_config_t* config)
                     // Move the chunks for which this seeder is responsible to the pending list
                     ITER_LOOP(dl_it, seeder->download_queue)
                     {
-                        insert_tail(pending_chunks, iter_drop_curr(dl_it));
+                        download_t* dl = iter_get_item(dl_it);
+                        insert_tail(pending_chunks, dl->chunk);
+                        free(iter_drop_curr(dl_it));
                     }
                     ITER_END(dl_it);
                     delete_empty_list(seeder->download_queue);
@@ -549,4 +551,3 @@ void leecher_timeout(bt_config_t* config)
             break;
     }
 }
-
