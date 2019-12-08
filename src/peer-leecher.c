@@ -2,10 +2,9 @@
 //  peer-leecher.c
 //
 #include <assert.h>
-#include <math.h>
+#include <math.h>   // fmin()
 #include <string.h> // memcmp()
 #include <stdlib.h> // malloc()
-#include <sys/time.h>
 #include "bt_parse.h"
 #include "chunk.h"
 #include "debug.h"
@@ -13,7 +12,6 @@
 #include "packet.h"
 #include "peer.h"
 #include "peer-leecher.h"
-#include "peer-reliable.h"
 
 
 #define AWAIT_NONE  0

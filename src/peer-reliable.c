@@ -1,9 +1,8 @@
 //
 //  peer-reliable.c
 //
+#include <sys/time.h>
 #include "peer-reliable.h"
-
-
 
 uint64_t get_time()
 {

@@ -2,13 +2,12 @@
  * peer.c
  */
 
-#include <sys/types.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
 #include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+#include <stdlib.h> // malloc()
+#include <string.h> // memcmp()
 #include <unistd.h> // access()
 #include "bt_parse.h"
 #include "chunk.h"

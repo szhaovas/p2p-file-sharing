@@ -5,7 +5,6 @@
 #ifndef peer_reliable_h
 #define peer_reliable_h
 
-#include <sys/time.h>
 #include <stdint.h>
 
 
