@@ -46,13 +46,10 @@ LinkedList* pending_chunks = NULL;
 LinkedList* seeder_waitlist = NULL;
 LinkedList* active_seeders  = NULL;
 
-
-void flood_WHOHAS(bt_config_t* config);
-void send_get_packet(download_t* dl, seeder_t* seeder, int sock);
-void send_ack_packet(seeder_t* seeder, uint32_t ack_no, int sock);
-void activate_one_seeder(bt_config_t* config);
+void start_download(download_t* dl, seeder_t* seeder, int sock);
+void activate_one_seeder(int max_conn, int sock);
 int  commit_download_to_file(download_t* dl);
-int  download_hash_okay(download_t* dl);
+int  downloaded_hash_okay(download_t* dl);
 void clean(void);
 
 
@@ -89,84 +86,36 @@ void get_chunks(LinkedList* missing_chunks, bt_config_t* config)
     seeder_waitlist = new_list();
     
     whohas_attempts = 0;
-    flood_WHOHAS(config);
-}
-
-
-void flood_WHOHAS(bt_config_t* config)
-{
     DPRINTF(DEBUG_LEECHER, "Flood WHOHAS (attempt %d)\n", whohas_attempts);
-    
-    // Construct WHOHAS packets
-    LinkedList* packets = make_hash_packets(&pending_chunks);
-    
-    // Send packets to everyone else
-    ITER_LOOP(packets_it, packets)
-    {
-        uint8_t* packet = iter_get_item(packets_it);
-        // Set fields
-        make_generic_header(packet);
-        set_packet_type(packet, PTYPE_WHOHAS);
-        // Send packet
-        for (bt_peer_t* peer = config->peers; peer != NULL; peer = peer->next)
-        {
-            if (peer->id == config->identity) continue;
-            if (send_packet(config->sock, packet, &peer->addr) < 0)
-            {
-                perror("process_get could not send packet");
-            }
-        }
-        free(iter_drop_curr(packets_it));
-    }
-    ITER_END(packets_it);
-    delete_empty_list(packets);
-    
+    send_whohas(&pending_chunks, config->peers, config->identity, config->sock);
     whohas_attempts += 1;
     whohas_last_active = get_time();
 }
 
 
-void send_get_packet(download_t* dl, seeder_t* seeder, int sock)
+void start_download(download_t* dl, seeder_t* seeder, int sock)
 {
     dl->expect_packet = 0;
     dl->remaining_bytes = BT_CHUNK_SIZE;
-    uint8_t* packet = make_empty_packet();
-    make_generic_header(packet);
-    set_packet_type(packet, PTYPE_GET);
-    set_payload(packet, dl->chunk->hash, SHA1_HASH_SIZE);
-    send_packet(sock, packet, &seeder->peer->addr);
+    send_get(dl->chunk->hash, seeder->peer, sock);
     DPRINTF(DEBUG_LEECHER, "GET chunk %i (%s) from seeder %d\n",
             dl->chunk->id, dl->chunk->hash_str_short, seeder->peer->id);
-    free(packet);
     seeder->attempts += 1;
     seeder->last_active = get_time();
 }
 
 
-void send_ack_packet(seeder_t* seeder, uint32_t ack_no, int sock)
+void activate_one_seeder(int max_conn, int sock)
 {
-    uint8_t* packet = make_empty_packet();
-    make_generic_header(packet);
-    set_packet_type(packet, PTYPE_ACK);
-    set_ack_no(packet, ack_no);
-    send_packet(sock, packet, &seeder->peer->addr);
-    free(packet);
-    seeder->attempts += 1;
-    seeder->last_active = get_time();
-}
 
-
-void activate_one_seeder(bt_config_t* config)
-{
-    assert(active_seeders->size < config->max_conn);
+    assert(active_seeders->size < max_conn);
     assert(seeder_waitlist->size > 0);
     seeder_t* seeder = drop_head(seeder_waitlist);
     insert_tail(active_seeders, seeder);
     download_t* dl = get_head(seeder->download_queue);
     seeder->attempts = 0;
-    send_get_packet(dl, seeder, config->sock);
+    start_download(dl, seeder, sock);
 }
-
 
 
 /**
@@ -237,7 +186,7 @@ void handle_IHAVE(PACKET_ARGS)
     }
     ITER_END(pending_chunks_it);
     
-    // Start sending GET to the seeders if all IHAVE replies were received
+    // Activate seeders if all IHAVE replies were received
     if (pending_ihave == 0)
     {
         DPRINTF(DEBUG_LEECHER, "All IHAVE replies have been received. Start sending GET\n\n");
@@ -245,7 +194,7 @@ void handle_IHAVE(PACKET_ARGS)
         int num_active_seeders = fmin(config->max_conn, seeder_waitlist->size);
         for (int i = 0; i < num_active_seeders; i++)
         {
-            activate_one_seeder(config);
+            activate_one_seeder(config->max_conn, config->sock);
         }
     }
     DPRINTF(DEBUG_LEECHER, "\n");
@@ -277,7 +226,7 @@ int commit_download_to_file(download_t* dl)
 }
 
 
-int download_hash_okay(download_t* dl)
+int downloaded_hash_okay(download_t* dl)
 {
     // Checksum downloaded chunk
     uint8_t hash_checksum[SHA1_HASH_SIZE+1];
@@ -327,7 +276,9 @@ void handle_DATA(PACKET_ARGS)
         DPRINTF(DEBUG_LEECHER_RELIABLE, "* %3d DATA is corrupted. Dup ack_no=%d (attempts %d)\n",
                 seq_no, dl->expect_packet, seeder->attempts);
         // Send duplicated ACK
-        send_ack_packet(seeder, dl->expect_packet, config->sock);
+        send_ack(dl->expect_packet, seeder->peer, config->sock);
+        seeder->attempts += 1;
+        seeder->last_active = get_time();
     }
     else // We expect this DATA packet
     {
@@ -338,8 +289,9 @@ void handle_DATA(PACKET_ARGS)
         
         // Ack
         dl->expect_packet += 1;
-        seeder->attempts = 0;
-        send_ack_packet(seeder, dl->expect_packet, config->sock);
+        send_ack(dl->expect_packet, seeder->peer, config->sock);
+        seeder->attempts = 1; // reset attempts
+        seeder->last_active = get_time();
         DPRINTF(DEBUG_LEECHER_RELIABLE, "%3d ACK sent\n", dl->expect_packet);
         
         // Last DATA packet is received
@@ -351,11 +303,11 @@ void handle_DATA(PACKET_ARGS)
                     dl->chunk->hash_str_short,
                     seeder->peer->id);
             
-            if (!download_hash_okay(dl))
+            if (!downloaded_hash_okay(dl))
             {
                 DPRINTF(DEBUG_LEECHER, "Checksum failed. Re-download chunk %d (%s) from seeder %d\n",
                         dl->chunk->id, dl->chunk->hash_str_short, seeder->peer->id);
-                send_get_packet(dl, seeder, config->sock);
+                start_download(dl, seeder, config->sock);
             }
             else // Hash okay
             {
@@ -381,7 +333,7 @@ void handle_DATA(PACKET_ARGS)
                 {
                     // Send GET (next chunk in the download queue) to this seeder
                     seeder->attempts = 0;
-                    send_get_packet(get_head(seeder->download_queue), seeder, config->sock);
+                    start_download(get_head(seeder->download_queue), seeder, config->sock);
                 }
                 // We got everything we needed from this seeder => deactivate and remove this seeder
                 else
@@ -390,7 +342,7 @@ void handle_DATA(PACKET_ARGS)
                     delete_empty_list(seeder->download_queue);
                     free(drop_node(active_seeders, seeder_node));
                     if (seeder_waitlist->size > 0)
-                        activate_one_seeder(config);
+                        activate_one_seeder(config->max_conn,  config->sock);
                     else
                     {
                         delete_empty_list(seeder_waitlist);
@@ -483,7 +435,10 @@ void leecher_timeout(bt_config_t* config)
             else if (now - whohas_last_active > WHOHAS_TIMEOUT)
             {
                 DPRINTF(DEBUG_LEECHER, "AWAIT_IHAVE timeout. Retry...\n");
-                flood_WHOHAS(config);
+                DPRINTF(DEBUG_LEECHER, "Flood WHOHAS (attempt %d)\n", whohas_attempts);
+                send_whohas(&pending_chunks, config->peers, config->identity, config->sock);
+                whohas_attempts += 1;
+                whohas_last_active = get_time();
             }
             break;
         }
@@ -511,13 +466,15 @@ void leecher_timeout(bt_config_t* config)
                     free(iter_drop_curr(active_seeder_it));
                     // Promote a waitlisted seeder, if any, to the active list
                     if (seeder_waitlist->size > 0)
-                        activate_one_seeder(config);
+                        activate_one_seeder(config->max_conn, config->sock);
                 }
                 else if (now - seeder->last_active > RELIABLE_TIMEOUT)
                 {
                     DPRINTF(DEBUG_LEECHER, "Seeder %d download timeout. Retry...\n", seeder->peer->id);
                     download_t* dl = get_head(seeder->download_queue);
-                    send_ack_packet(seeder, dl->expect_packet, config->sock);
+                    send_ack(dl->expect_packet, seeder->peer, config->sock);
+                    seeder->attempts += 1;
+                    seeder->last_active = get_time();
                 }
             }
             ITER_END(active_seeder_it);

@@ -145,15 +145,6 @@ int read_chunk_file(char* chunk_file, LinkedList* chunk_list)
 }
 
 
-/**
- Set packet's magic number and version to the implementation-specific numbers.
- */
-void make_generic_header(uint8_t* packet)
-{
-    set_magic_number(packet, MAGIC_NUMBER);
-    set_version(packet, VERSION);
-}
-
 
 void process_inbound_udp(int sock) {
     struct sockaddr_in from;

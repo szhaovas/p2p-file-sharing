@@ -62,26 +62,7 @@ void handle_WHOHAS(PACKET_ARGS)
     // We can seed some of the requested chunks
     if (matched_chunks->size)
     {
-        // Construct IHAVE packets
-        LinkedList* packets = make_hash_packets(&matched_chunks);
-        ITER_LOOP(packets_it, packets)
-        {
-            uint8_t* packet = iter_get_item(packets_it);
-            // Set fields
-            make_generic_header(packet);
-            set_packet_type(packet, PTYPE_IHAVE);
-            // Print packet
-            DPRINTF(DEBUG_SEEDER, "Sending IHAVE to peer %d\n", from->id);
-            print_hash_payload(DEBUG_SEEDER, packet);
-            // Send packet
-            if (send_packet(config->sock, packet, &from->addr) < 0)
-            {
-                perror("Could not send WHOHAS packet");
-            }
-            free(iter_drop_curr(packets_it));
-        }
-        ITER_END(packets_it);
-        delete_empty_list(packets);
+        send_ihave(&matched_chunks, from, config->sock);
     }
     // No need to free individual hashes since they were not malloc'ed
     delete_list(matched_chunks);
@@ -90,15 +71,14 @@ void handle_WHOHAS(PACKET_ARGS)
 
 void send_next_data_packet(leecher_t* leecher, int sock)
 {
-    uint8_t* packet = make_empty_packet();
-    make_generic_header(packet);
-    set_packet_type(packet, PTYPE_DATA);
     uint64_t offset = BT_CHUNK_SIZE - leecher->remaining_bytes;
-    uint64_t bytes = fmin(DATA_PAYLOAD_LEN, leecher->remaining_bytes);
-    set_payload(packet, leecher->data + offset, bytes);
-    set_seq_no(packet, leecher->next_packet);
-    send_packet(sock, packet, &leecher->peer->addr);
-    free(packet);
+    uint64_t data_len = fmin(DATA_PAYLOAD_LEN, leecher->remaining_bytes);
+    
+    send_data(leecher->next_packet,
+              leecher->data + offset,
+              data_len,
+              leecher->peer,
+              sock);
     
     leecher->attempts += 1;
     leecher->last_active = get_time();
@@ -251,7 +231,7 @@ void handle_ACK(PACKET_ARGS)
             DPRINTF(DEBUG_SEEDER, "\n");
         }
     }
-    // Duplicated ACK
+    // Received duplicated ACK
     else if (ack_no == leecher->next_packet)
     {
         DPRINTF(DEBUG_SEEDER_RELIABLE, "Retry (attempt %d/%d)\n", leecher->attempts, RELIABLE_RETRY);

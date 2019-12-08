@@ -48,28 +48,16 @@ PACKET(handle_DENIED);
 void handle_packet(uint8_t* packet, LinkedList* owned_chunks, bt_peer_t* from, bt_config_t* config);
 
 
-void set_magic_number(uint8_t* packet, uint16_t magic_no);
-void set_version(uint8_t* packet, uint8_t version);
-void set_packet_type(uint8_t* packet, uint8_t packet_type);
-void set_seq_no(uint8_t* packet, uint32_t seq_no);
-void set_ack_no(uint8_t* packet, uint32_t ack_no);
-void set_payload(uint8_t* packet, uint8_t* payload, size_t payload_len);
-
-uint16_t get_magic_no(uint8_t* packet);
-uint8_t  get_version(uint8_t* packet);
-uint8_t  get_packet_type(uint8_t* packet);
-uint16_t get_packet_len(uint8_t* packet);
-uint32_t get_seq_no(uint8_t* packet);
-uint32_t get_ack_no(uint8_t* packet);
 LinkedList* get_hashes(uint8_t* packet);
-uint8_t* get_payload(uint8_t* packet);
-uint16_t get_payload_len(uint8_t* packet);
-
-uint8_t* make_empty_packet(void);
-LinkedList* make_hash_packets(LinkedList** chunks_ptr);
 void print_packet_header(int debug, uint8_t* packet);
 void print_hash_payload(int debug, uint8_t* packet);
-ssize_t send_packet(int sock, uint8_t* packet, const struct sockaddr_in* addr);
+
+void send_get(uint8_t* hash, bt_peer_t* dst, int sock);
+void send_ack(uint32_t ack_no, bt_peer_t* dst, int sock);
+void send_whohas(LinkedList** chunks, bt_peer_t* peers, short me, int sock);
+void send_ihave(LinkedList** chunks_ptr, bt_peer_t* dst, int sock);
+void send_data(uint32_t seq_no, uint8_t* data, size_t data_len, bt_peer_t* dst, int sock);
+
 
 
 #endif /* packet_h */

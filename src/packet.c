@@ -71,12 +71,30 @@ packet_handler_t handlers[NUM_PACKET_TYPES] = {
 };
 
 
-/* Declaring privite setters and getters */
+/* Declaring private functions */
 void set_header_len(uint8_t* packet, uint16_t header_len);
 void set_packet_len(uint8_t* packet, uint16_t packet_len);
 void set_num_hashes(uint8_t* packet, uint8_t num_hashes);
+void set_magic_number(uint8_t* packet, uint16_t magic_no);
+void set_version(uint8_t* packet, uint8_t version);
+void set_packet_type(uint8_t* packet, uint8_t packet_type);
+void set_seq_no(uint8_t* packet, uint32_t seq_no);
+void set_ack_no(uint8_t* packet, uint32_t ack_no);
+void set_payload(uint8_t* packet, uint8_t* payload, size_t payload_len);
+
+uint16_t get_magic_no(uint8_t* packet);
+uint8_t  get_version(uint8_t* packet);
+uint8_t  get_packet_type(uint8_t* packet);
+uint16_t get_packet_len(uint8_t* packet);
+uint32_t get_seq_no(uint8_t* packet);
+uint32_t get_ack_no(uint8_t* packet);
+uint8_t* get_payload(uint8_t* packet);
+uint16_t get_payload_len(uint8_t* packet);
 uint16_t get_header_len(uint8_t* packet);
 uint16_t get_num_hashes(uint8_t* packet);
+
+LinkedList* make_hash_packets(LinkedList** chunks_ptr);
+ssize_t send_packet(int sock, uint8_t* packet, const struct sockaddr_in* addr);
 
 
 /* Setter helper */
@@ -105,9 +123,7 @@ uint32_t get_field(uint8_t* packet, int field)
     return val;
 }
 
-
-
-/* Private Setters */
+/* Setters */
 void set_header_len(uint8_t* packet, uint16_t header_len)
 {   set_field(packet, P_HDLEN, header_len);    }
 
@@ -117,9 +133,6 @@ void set_packet_len(uint8_t* packet, uint16_t packet_len)
 void set_num_hashes(uint8_t* packet, uint8_t num_hashes)
 {   set_field(packet, P_NHASH, num_hashes);    }
 
-
-
-/* Public Setters */
 void set_magic_number(uint8_t* packet, uint16_t magic_no)
 {   set_field(packet, P_MAGIC, magic_no);   }
 
@@ -142,19 +155,13 @@ void set_payload(uint8_t* packet, uint8_t* payload, size_t payload_len)
     set_packet_len(packet, get_header_len(packet) + payload_len);
 }
 
-
-
-/* Private Getters */
+/* Getters */
 uint16_t get_header_len(uint8_t* packet)
-{   return HEADER_LEN;    } // FIXME: cannot trust incoming packets!
-//{   return get_field(packet, P_HDLEN);    }
+{   return get_field(packet, P_HDLEN);    } // FIXME: cannot trust incoming packets!
 
 uint16_t get_num_hashes(uint8_t* packet)
 {   return get_field(packet, P_NHASH);   }
 
-
-
-/* Public Getters */
 uint16_t get_magic_no(uint8_t* packet)
 {   return get_field(packet, P_MAGIC);   }
 
@@ -173,6 +180,29 @@ uint32_t get_seq_no(uint8_t* packet)
 uint32_t get_ack_no(uint8_t* packet)
 {   return get_field(packet, P_ACKNO);   }
 
+uint8_t* get_payload(uint8_t* packet)
+{   return packet + get_header_len(packet);  }
+
+uint16_t get_payload_len(uint8_t* packet)
+{   return get_packet_len(packet) - get_header_len(packet);   }
+
+ssize_t send_packet(int sock, uint8_t* packet, const struct sockaddr_in* addr)
+{
+    return spiffy_sendto(sock,
+                         packet,
+                         get_packet_len(packet),
+                         0,
+                         (const struct sockaddr*) addr,
+                         sizeof(*addr));
+}
+
+
+
+/* Public functions */
+
+/**
+ Make a new list that contains the hashes in the payload.
+ */
 LinkedList* get_hashes(uint8_t* payload)
 {
     LinkedList* hashes = new_list();
@@ -186,26 +216,29 @@ LinkedList* get_hashes(uint8_t* payload)
     return hashes;
 }
 
-uint8_t* get_payload(uint8_t* packet)
-{   return packet + get_header_len(packet);  }
 
-uint16_t get_payload_len(uint8_t* packet)
-{   return get_packet_len(packet) - get_header_len(packet);   }
-
-
-uint8_t* make_empty_packet()
+/**
+ Make a packet with generic header.
+ */
+uint8_t* make_generic_packet()
 {
     uint8_t* packet = malloc(MAX_PACKET_LEN);
     memset(packet, '\0', MAX_PACKET_LEN);
+    set_magic_number(packet, MAGIC_NUMBER);
+    set_version(packet, VERSION);
     set_header_len(packet, HEADER_LEN);
     set_packet_len(packet, HEADER_LEN);
     return packet;
 }
 
-int validate_packet(uint8_t* packet, uint16_t magic_no, uint8_t version)
+
+/**
+ Validate packet by checking various fields.
+ */
+int validate_packet(uint8_t* packet)
 {
-    return get_magic_no(packet) == magic_no &&
-           get_version(packet) == version &&
+    return get_magic_no(packet) == MAGIC_NUMBER &&
+           get_version(packet) == VERSION &&
            get_packet_type(packet) < NUM_PACKET_TYPES &&
            get_header_len(packet) == HEADER_LEN &&
            get_packet_len(packet) <= MAX_PACKET_LEN &&
@@ -218,7 +251,7 @@ int validate_packet(uint8_t* packet, uint16_t magic_no, uint8_t version)
  */
 void handle_packet(uint8_t* packet, LinkedList* owned_chunks, bt_peer_t* from, bt_config_t* config)
 {
-    if (validate_packet(packet, MAGIC_NUMBER, VERSION))
+    if (validate_packet(packet))
     {
 //        printf("New packet:\n");
 //        print_packet_header(DEBUG_NONE, packet);
@@ -236,6 +269,81 @@ void handle_packet(uint8_t* packet, LinkedList* owned_chunks, bt_peer_t* from, b
 }
 
 
+void send_get(uint8_t* hash, bt_peer_t* dst, int sock)
+{
+    uint8_t* packet = make_generic_packet();
+    set_packet_type(packet, PTYPE_GET);
+    set_payload(packet,hash, SHA1_HASH_SIZE);
+    send_packet(sock, packet, &dst->addr);
+    free(packet);
+}
+
+void send_ack(uint32_t ack_no, bt_peer_t* dst, int sock)
+{
+    uint8_t* packet = make_generic_packet();
+    set_packet_type(packet, PTYPE_ACK);
+    set_ack_no(packet, ack_no);
+    send_packet(sock, packet, &dst->addr);
+    free(packet);
+}
+
+void send_whohas(LinkedList** chunks_ptr, bt_peer_t* peers, short me, int sock)
+{
+    // Construct WHOHAS packets
+    LinkedList* packets = make_hash_packets(chunks_ptr);
+    
+    // Send packets to everyone else
+    ITER_LOOP(packets_it, packets)
+    {
+        uint8_t* packet = iter_get_item(packets_it);
+        // Set fields
+        set_packet_type(packet, PTYPE_WHOHAS);
+        // Send packet
+        for (bt_peer_t* peer = peers; peer != NULL; peer = peer->next)
+        {
+            if (peer->id == me) continue;
+            send_packet(sock, packet, &peer->addr);
+        }
+        free(iter_drop_curr(packets_it));
+    }
+    ITER_END(packets_it);
+    delete_empty_list(packets);
+}
+
+void send_ihave(LinkedList** chunks_ptr, bt_peer_t* dst, int sock)
+{
+    // Construct IHAVE packets
+    LinkedList* packets = make_hash_packets(chunks_ptr);
+    ITER_LOOP(packets_it, packets)
+    {
+        uint8_t* packet = iter_get_item(packets_it);
+        // Set fields
+
+        set_packet_type(packet, PTYPE_IHAVE);
+        // Print packet
+        DPRINTF(DEBUG_SEEDER, "Sending IHAVE to peer %d\n", dst->id);
+        print_hash_payload(DEBUG_SEEDER, packet);
+        // Send packet
+        if (send_packet(sock, packet, &dst->addr) < 0)
+        {
+            perror("Could not send WHOHAS packet");
+        }
+        free(iter_drop_curr(packets_it));
+    }
+    ITER_END(packets_it);
+    delete_empty_list(packets);
+}
+
+void send_data(uint32_t seq_no, uint8_t* data, size_t data_len, bt_peer_t* dst, int sock)
+{
+    uint8_t* packet = make_generic_packet();
+    set_packet_type(packet, PTYPE_DATA);
+    set_payload(packet, data, data_len);
+    set_seq_no(packet, seq_no);
+    send_packet(sock, packet, &dst->addr);
+    free(packet);
+}
+
 
 /**
  Make a (new) list of packets with hash payload and a partially filled header.
@@ -251,7 +359,7 @@ LinkedList* make_hash_packets(LinkedList** chunks_ptr)
     for (int i = 0; i < num_packets; i++)
     {
         // Allocate buffer for this packet
-        uint8_t* packet = make_empty_packet();
+        uint8_t* packet = make_generic_packet();
         
         // Construct hash payload
         uint8_t num_hashes = fmin(chunks->size, MAX_NUM_HASHES);
@@ -338,15 +446,4 @@ void print_hash_payload(int debug, uint8_t* packet)
     char str[MAX_PACKET_LEN*100];
     print_hash_payload_to_str(packet, str);
     DPRINTF(debug, "%s", str);
-}
-
-
-ssize_t send_packet(int sock, uint8_t* packet, const struct sockaddr_in* addr)
-{
-    return spiffy_sendto(sock,
-                         packet,
-                         get_packet_len(packet),
-                         0,
-                         (const struct sockaddr*) addr,
-                         sizeof(*addr));
 }
