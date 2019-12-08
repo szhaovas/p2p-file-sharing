@@ -255,8 +255,6 @@ void handle_ACK(PACKET_ARGS)
 void seeder_timeout(bt_config_t* config)
 {
     if (!leecher_list) return;
-    struct timeval now;
-    gettimeofday(&now, NULL);
     ITER_LOOP(leecher_it, leecher_list)
     {
         leecher_t* leecher = iter_get_item(leecher_it);

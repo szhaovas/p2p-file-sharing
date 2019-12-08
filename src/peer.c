@@ -168,12 +168,36 @@ void process_get(char* chunkfile, char* outputfile) {
         perror("process_get could not open chunkfile");
         return;
     }
-    if (access(outputfile, F_OK))
-    {
-        perror("process_get: Output file already exists");
-        return;
+    FILE* fp = fopen(outputfile, "r");
+    if (fp) { // File exists. Ask the user if okay to overwrite
+        int overwrite = -1;
+        printf("Output file (%s) already exists. ", outputfile);
+        do {
+            printf("Overwrite (y/n)? ");
+            char* answer = NULL;
+            size_t len;
+            if (getline(&answer, &len, stdin) < 0) continue;
+            if (len == 0)
+            {
+                if (answer) free(answer);
+                continue;
+            }
+            switch (answer[0]) {
+                case 'y': case 'Y':
+                    overwrite = 1;
+                    break;
+                case 'n': case 'N':
+                    overwrite = 0;
+                    break;
+                default:
+                    break;
+            }
+            free(answer);
+        }  while (overwrite < 0);
+        fclose(fp);
+        if (!overwrite) return;
     }
-    FILE* fp = fopen(outputfile, "w");
+    fp = fopen(outputfile, "w");
     if (!fp)
     {
         perror("process_get could not open output file for writing");
