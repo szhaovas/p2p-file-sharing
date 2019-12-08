@@ -21,6 +21,9 @@
 #define DL_STARTING 0 // Upon timeout, should resend GET
 #define DL_STARTED  1 // Upon timeout, should resent ACK
 
+#define CLEAN_PENDING 0
+#define DO_NOT_CLEAN_PENDING 1
+
 
 /* A seeder is a peer from whom we download a list of chunks */
 typedef struct _seeder_t {
@@ -52,7 +55,7 @@ void start_download(download_t* dl, seeder_t* seeder, int sock);
 void activate_one_seeder(int max_conn, int sock);
 int  commit_download_to_file(download_t* dl);
 int  downloaded_hash_okay(download_t* dl);
-void clean(void);
+void clean(int should_clean_pending_chunks);
 
 
 /**
@@ -347,8 +350,8 @@ void handle_DATA(PACKET_ARGS)
                 // Failed to write to output file
                 if (commit_download_to_file(dl) < 0)
                 {
-                    perror("FATAL: Could not write data to output file");
-                    clean(); // FIXME: be more tolerant? What else can we do?
+                    DPRINTF(DEBUG_LEECHER, "FATAL: Could not write data to output file\n");
+                    clean(CLEAN_PENDING); // FIXME: be more tolerant? What else can we do?
                     return;
                 }
                 
@@ -379,26 +382,14 @@ void handle_DATA(PACKET_ARGS)
                     // No seeder on the waitlist
                     else
                     {
-                        delete_empty_list(seeder_waitlist);
-                        if (active_seeders->size == 0) // All downloads have completed
+                        if (active_seeders->size == 0 && pending_chunks->size == 0) // All downloads have completed
                         {
-                            delete_empty_list(active_seeders);
-                            if (pending_chunks->size > 0) // Need to retry failed downloads
-                            {
-                                // Partial clean (all but pending_chunks)
-                                state = AWAIT_NONE;
-                                pending_ihave = 0;
-                                whohas_attempts = 0;
-                                whohas_last_active = 0;
-                                seeder_waitlist = NULL;
-                                active_seeders  = NULL;
-                                // Retry
-                                get_chunks(NULL, config);
-                            }
-                            else // Nothing else to do!
-                            {
-                                clean();
-                            }
+                            clean(CLEAN_PENDING);
+                        }
+                        else // Need to retry accumulated failed downloads
+                        {
+                            clean(DO_NOT_CLEAN_PENDING);
+                            get_chunks(NULL, config);
                         }
                     }
                 }
@@ -413,7 +404,7 @@ void handle_DENIED(PACKET_ARGS)
 {}
 
 
-void clean()
+void clean(int should_clean_pending_chunks)
 {
     state = AWAIT_NONE;
     pending_ihave = 0;
@@ -421,7 +412,7 @@ void clean()
     whohas_last_active = 0;
     get_attempts = 0;
     
-    if (pending_chunks)
+    if (should_clean_pending_chunks == CLEAN_PENDING && pending_chunks)
     {
         ITER_LOOP(pending_chunks_it, pending_chunks)
         {
@@ -483,8 +474,8 @@ void leecher_timeout(bt_config_t* config)
             {
                 DPRINTF(DEBUG_LEECHER, "AWAIT_IHAVE reached attempts limit (%d/%d)\n",
                         whohas_attempts, WHOHAS_RETRY);
-                perror("FATAL: Could not gather all IHAVE packets");
-                clean();
+                DPRINTF(DEBUG_LEECHER, "FATAL: Could not gather all IHAVE packets\n");
+                clean(CLEAN_PENDING);
             }
             else if (now - whohas_last_active > WHOHAS_TIMEOUT)
             {
@@ -546,6 +537,11 @@ void leecher_timeout(bt_config_t* config)
                 }
             }
             ITER_END(active_seeder_it);
+            if (active_seeders->size == 0)
+            {
+                clean(DO_NOT_CLEAN_PENDING);
+                get_chunks(NULL, config);
+            }
             break;
         }
             
