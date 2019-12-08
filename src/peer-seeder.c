@@ -136,19 +136,22 @@ void handle_GET(PACKET_ARGS)
     
     // Ignore if the sender is already on the leecher list (only one connection allowed)
     leecher_t* leecher = NULL;
+    Node* leecher_node = NULL;
     ITER_LOOP(leecher_it, leecher_list)
     {
         leecher_t* l = iter_get_item(leecher_it);
         if (l->peer->id == from->id)
         {
             leecher = l;
+            leecher_node = iter_get_node(leecher_it);
             break;
         }
     }
     ITER_END(leecher_it);
     if (leecher)
     {
-        DPRINTF(DEBUG_SEEDER, "Already have another connection with leecher %d\n", leecher->peer->id);
+        DPRINTF(DEBUG_SEEDER, "Dropping old connection with leecher %d\n", leecher->peer->id);
+        free(drop_node(leecher_list, leecher_node));
         return;
     }
     
