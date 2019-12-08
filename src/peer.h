@@ -22,7 +22,7 @@ typedef struct _chunk_t {
 /* Public functions */
 void get_short_hash_str(const char* hash_str, char* hash_str_short);
 void print_short_hash_str(int level, uint8_t* hash);
-void print_owned_chunk(int level);
+void print_chunks(int level, LinkedList* chunks);
 
 
 

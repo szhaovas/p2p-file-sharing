@@ -358,7 +358,7 @@ void handle_DATA(PACKET_ARGS)
                 // Remove downloaded chunk from seeder's download list
                 // and add it to the list of owned chunks
                 insert_tail(owned_chunks, dl->chunk);
-                print_owned_chunk(DEBUG_LEECHER);
+                print_chunks(DEBUG_LEECHER, owned_chunks);
                 free(drop_node(seeder->download_queue, dl_node));
                 
                 DPRINTF(DEBUG_LEECHER, "Number of pending downloads from seeder %d: %d\n\n",
