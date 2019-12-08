@@ -133,11 +133,15 @@ void handle_IHAVE(PACKET_ARGS)
     LinkedList* hashes = get_hashes(payload);
     // Look for the IHAVE sender in the seeder list
     seeder_t* seeder = NULL;
+    Node* seeder_node = NULL;
     ITER_LOOP(seeder_it, seeder_waitlist)
     {
         seeder_t* peer_dl = iter_get_item(seeder_it);
         if (peer_dl->peer->id == from->id)
+        {
             seeder = peer_dl;
+            seeder_node = iter_get_node(seeder_it);
+        }
     }
     ITER_END(seeder_it);
     
@@ -148,7 +152,7 @@ void handle_IHAVE(PACKET_ARGS)
         memset(seeder, '\0', sizeof(seeder_t));
         seeder->peer = from;
         seeder->download_queue = new_list();
-        insert_tail(seeder_waitlist, seeder);
+        seeder_node = insert_tail(seeder_waitlist, seeder);
         DPRINTF(DEBUG_LEECHER, "Found a new seeder (#%d)\n", seeder->peer->id);
     }
     DPRINTF(DEBUG_LEECHER, "Available data hashes from seeder %d\n", seeder->peer->id);
@@ -186,7 +190,14 @@ void handle_IHAVE(PACKET_ARGS)
     }
     ITER_END(pending_chunks_it);
     
-    // Activate seeders if all IHAVE replies were received
+    // We need nothing from this seeder
+    if (seeder->download_queue->size == 0)
+    {
+        delete_empty_list(seeder->download_queue);
+        free(drop_node(seeder_waitlist, seeder_node));
+    }
+    
+    // Start downloading if all IHAVE replies were received
     if (pending_ihave == 0)
     {
         DPRINTF(DEBUG_LEECHER, "All IHAVE replies have been received. Start sending GET\n\n");
