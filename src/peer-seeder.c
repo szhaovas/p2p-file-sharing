@@ -179,6 +179,12 @@ void handle_GET(PACKET_ARGS)
 
 void handle_ACK(PACKET_ARGS)
 {
+    if (!leecher_list)
+    {
+        DPRINTF(DEBUG_SEEDER, "Ignore unexpected ACK from peer %d\n", from->id);
+        return;
+    }
+    
     // See if the sender is actually a registered leecher
     leecher_t* leecher = NULL;
     Node* leecher_node = NULL;

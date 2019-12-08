@@ -18,9 +18,13 @@
 #define AWAIT_IHAVE 1
 #define AWAIT_DATA  2
 
+#define DL_STARTING 0 // Upon timeout, should resend GET
+#define DL_STARTED  1 // Upon timeout, should resent ACK
+
 
 /* A seeder is a peer from whom we download a list of chunks */
 typedef struct _seeder_t {
+    int state;
     int attempts;
     uint64_t last_active;
     bt_peer_t* peer;
@@ -95,9 +99,10 @@ void start_download(download_t* dl, seeder_t* seeder, int sock)
 {
     dl->expect_packet = 0;
     dl->remaining_bytes = BT_CHUNK_SIZE;
-    send_get(dl->chunk->hash, seeder->peer, sock);
     DPRINTF(DEBUG_LEECHER, "GET chunk %i (%s) from seeder %d\n",
             dl->chunk->id, dl->chunk->hash_str_short, seeder->peer->id);
+    send_get(dl->chunk->hash, seeder->peer, sock);
+    seeder->state = DL_STARTING;
     seeder->attempts += 1;
     seeder->last_active = get_time();
 }
@@ -252,6 +257,12 @@ int downloaded_hash_okay(download_t* dl)
 
 void handle_DATA(PACKET_ARGS)
 {
+    if (!active_seeders)
+    {
+        DPRINTF(DEBUG_LEECHER, "Ignore unexpected DATA from peer %d\n", from->id);
+        return;
+    }
+    
     // See if the sender is actually an active seeder
     seeder_t* seeder = NULL;
     Node* seeder_node = NULL;
@@ -276,6 +287,15 @@ void handle_DATA(PACKET_ARGS)
     
     download_t* dl = get_head(seeder->download_queue);
     Node* dl_node  = get_head_node(seeder->download_queue);
+    
+    
+    // If this is the first DATA, mark download as already started
+    if (seeder->state == DL_STARTING)
+    {
+        seeder->state = DL_STARTED;
+        seeder->attempts = 0;
+        DPRINTF(DEBUG_LEECHER_RELIABLE, "Download confirmed by seeder %d\n", seeder->peer->id);
+    }
     
     DPRINTF(DEBUG_LEECHER_RELIABLE, "%3d DATA received\n", seq_no);
     
@@ -506,9 +526,23 @@ void leecher_timeout(bt_config_t* config)
                 {
                     DPRINTF(DEBUG_LEECHER, "Seeder %d download timeout. Retry...\n", seeder->peer->id);
                     download_t* dl = get_head(seeder->download_queue);
-                    send_ack(dl->expect_packet, seeder->peer, config->sock);
-                    seeder->attempts += 1;
-                    seeder->last_active = get_time();
+                    switch (seeder->state)
+                    {
+                        case DL_STARTING:
+                        {
+                            start_download(dl, seeder, config->sock);
+                            break;
+                        }
+                        case DL_STARTED:
+                        {
+                            send_ack(dl->expect_packet, seeder->peer, config->sock);
+                            seeder->attempts += 1;
+                            seeder->last_active = get_time();
+                            break;
+                        }
+                        default:
+                            break;
+                    }
                 }
             }
             ITER_END(active_seeder_it);
