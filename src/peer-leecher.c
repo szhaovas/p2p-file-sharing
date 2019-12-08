@@ -307,10 +307,18 @@ void handle_DATA(PACKET_ARGS)
     // (2) seq_no is wrong
     if (dl->remaining_bytes < payload_len || seq_no != dl->expect_packet)
     {
-        DPRINTF(DEBUG_LEECHER_RELIABLE, "* %3d DATA is corrupted. Dup ack_no=%d (attempts %d)\n",
-                seq_no, dl->expect_packet, seeder->attempts);
-        // Send duplicated ACK
-        send_ack(dl->expect_packet, seeder->peer, config->sock);
+        DPRINTF(DEBUG_LEECHER_RELIABLE, "* %3d DATA is corrupted. ", seq_no);
+        
+        // Send duplicated ACK if not the first packet
+        if (dl->expect_packet > 0)
+        {
+            send_ack(dl->expect_packet-1, seeder->peer, config->sock);
+            DPRINTF(DEBUG_LEECHER, "Dup ack_no=%d (attempts %d)\n", dl->expect_packet-1, seeder->attempts);
+        }
+        else
+        {
+            DPRINTF(DEBUG_LEECHER, "Waiting for sender timeout (attempts %d)\n", seeder->attempts);
+        }
         seeder->attempts += 1;
         seeder->last_active = get_time();
     }
@@ -322,11 +330,11 @@ void handle_DATA(PACKET_ARGS)
         dl->remaining_bytes -= payload_len;
         
         // Ack
-        dl->expect_packet += 1;
         send_ack(dl->expect_packet, seeder->peer, config->sock);
+        DPRINTF(DEBUG_LEECHER_RELIABLE, "%3d ACK sent\n", dl->expect_packet);
+        dl->expect_packet += 1;
         seeder->attempts = 1; // reset attempts
         seeder->last_active = get_time();
-        DPRINTF(DEBUG_LEECHER_RELIABLE, "%3d ACK sent\n", dl->expect_packet);
         
         // Last DATA packet is received
         if (dl->remaining_bytes == 0)
@@ -474,7 +482,7 @@ void leecher_timeout(bt_config_t* config)
             {
                 DPRINTF(DEBUG_LEECHER, "AWAIT_IHAVE reached attempts limit (%d/%d)\n",
                         whohas_attempts, WHOHAS_RETRY);
-                DPRINTF(DEBUG_LEECHER, "FATAL: Could not gather all IHAVE packets\n");
+                DPRINTF(DEBUG_LEECHER, "FATAL: Could not gather all IHAVE replies\n");
                 clean(CLEAN_PENDING);
             }
             else if (now - whohas_last_active > WHOHAS_TIMEOUT)
@@ -528,7 +536,16 @@ void leecher_timeout(bt_config_t* config)
                         }
                         case DL_STARTED:
                         {
-                            send_ack(dl->expect_packet, seeder->peer, config->sock);
+                            // Send duplicated ACK if not the first packet
+                            if (dl->expect_packet > 0)
+                            {
+                                send_ack(dl->expect_packet-1, seeder->peer, config->sock);
+                                DPRINTF(DEBUG_LEECHER, "Dup ack_no=%d (attempts %d)\n", dl->expect_packet-1, seeder->attempts);
+                            }
+                            else
+                            {
+                                DPRINTF(DEBUG_LEECHER, "Waiting for sender timeout (attempts %d)\n", seeder->attempts);
+                            }
                             seeder->attempts += 1;
                             seeder->last_active = get_time();
                             break;

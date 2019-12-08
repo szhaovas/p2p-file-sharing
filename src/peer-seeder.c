@@ -207,18 +207,16 @@ void handle_ACK(PACKET_ARGS)
         return;
     }
     
-    if (ack_no == leecher->next_packet + 1)
+    if (ack_no == leecher->next_packet)
     {
-        DPRINTF(DEBUG_SEEDER_RELIABLE, "%3d/%d ACK received\n",
-                ack_no,
-                leecher->total_packets);
+        DPRINTF(DEBUG_SEEDER_RELIABLE, "%3d/%d ACK received\n", ack_no, leecher->total_packets);
+        leecher->attempts = 0;
         leecher->last_active = get_time();
         // More data packets to send
         if (leecher->remaining_bytes > DATA_PAYLOAD_LEN)
         {
             leecher->next_packet += 1;
             leecher->remaining_bytes -= DATA_PAYLOAD_LEN;
-            leecher->attempts = 0;
             send_next_data_packet(leecher, config->sock);
             DPRINTF(DEBUG_SEEDER_RELIABLE, "%3d/%d DATA sent\n",
                     leecher->next_packet,
@@ -238,7 +236,7 @@ void handle_ACK(PACKET_ARGS)
         }
     }
     // Received duplicated ACK
-    else if (ack_no == leecher->next_packet)
+    else if (ack_no + 1 == leecher->next_packet)
     {
         DPRINTF(DEBUG_SEEDER_RELIABLE, "Retry (attempt %d/%d)\n", leecher->attempts, RELIABLE_RETRY);
         send_next_data_packet(leecher, config->sock);
