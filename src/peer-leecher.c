@@ -499,7 +499,7 @@ void leecher_timeout(bt_config_t* config)
                 {
                     DPRINTF(DEBUG_LEECHER, "Seeder %d reached attempts limit (%d/%d)\n",
                             seeder->peer->id, seeder->attempts, RELIABLE_RETRY);
-                    perror("Download failed. Will attempts later");
+                    DPRINTF(DEBUG_LEECHER, "Download failed. Will retry later\n");
                     // Move the chunks for which this seeder is responsible to the pending list
                     ITER_LOOP(dl_it, seeder->download_queue)
                     {

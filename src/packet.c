@@ -346,7 +346,7 @@ void send_data(uint32_t seq_no, uint8_t* data, size_t data_len, bt_peer_t* dst, 
 
 
 /**
- Make a (new) list of packets with hash payload and a partially filled header.
+ Make a list of packets with hash payload and a partially filled header.
  */
 LinkedList* make_hash_packets(LinkedList** chunks_ptr)
 {

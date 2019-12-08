@@ -219,9 +219,9 @@ void process_get(char* chunkfile, char* outputfile) {
     if (missing_chunks->size == 0 || ongoing_jobs_exist())
     {
         if (missing_chunks->size == 0)
-            perror("Already have everything");
+            printf("Already have everything");
         else
-            perror("Already have an ongoing download");
+            printf("Already have an ongoing download");
         // Free missing chunks
         ITER_LOOP(missing_chunks_it, missing_chunks)
         {
