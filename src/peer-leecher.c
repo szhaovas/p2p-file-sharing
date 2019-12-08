@@ -107,11 +107,13 @@ void start_download(download_t* dl, seeder_t* seeder, int sock)
 
 void activate_one_seeder(int max_conn, int sock)
 {
-
+    // Make sure there is indeed a seeder waiting to be activated
     assert(active_seeders->size < max_conn);
     assert(seeder_waitlist->size > 0);
+    // Move the seeder from waitlist to active list
     seeder_t* seeder = drop_head(seeder_waitlist);
     insert_tail(active_seeders, seeder);
+    // Start downloading from this seeder
     download_t* dl = get_head(seeder->download_queue);
     seeder->attempts = 0;
     start_download(dl, seeder, sock);
@@ -200,7 +202,7 @@ void handle_IHAVE(PACKET_ARGS)
     // Start downloading if all IHAVE replies were received
     if (pending_ihave == 0)
     {
-        DPRINTF(DEBUG_LEECHER, "All IHAVE replies have been received. Start sending GET\n\n");
+        DPRINTF(DEBUG_LEECHER, "All IHAVE replies have been received. Start the downloads\n");
         state = AWAIT_DATA;
         int num_active_seeders = fmin(config->max_conn, seeder_waitlist->size);
         for (int i = 0; i < num_active_seeders; i++)
@@ -327,7 +329,8 @@ void handle_DATA(PACKET_ARGS)
                 // Failed to write to output file
                 if (commit_download_to_file(dl) < 0)
                 {
-                    clean(); // FIXME: be more tolerant ?
+                    perror("FATAL: Could not write data to output file");
+                    clean(); // FIXME: be more tolerant? What else can we do?
                     return;
                 }
                 
@@ -346,30 +349,43 @@ void handle_DATA(PACKET_ARGS)
                     seeder->attempts = 0;
                     start_download(get_head(seeder->download_queue), seeder, config->sock);
                 }
-                // We got everything we needed from this seeder => deactivate and remove this seeder
+                // Got everything needed from this seeder => Deactivate and remove this seeder
                 else
                 {
                     DPRINTF(DEBUG_LEECHER, "No more downloads from seeder %d\n", seeder->peer->id);
                     delete_empty_list(seeder->download_queue);
                     free(drop_node(active_seeders, seeder_node));
+                    // Activate seeders on the waitlist, if any
                     if (seeder_waitlist->size > 0)
                         activate_one_seeder(config->max_conn,  config->sock);
+                    // No seeder on the waitlist
                     else
                     {
                         delete_empty_list(seeder_waitlist);
-                        if (active_seeders->size == 0)
+                        if (active_seeders->size == 0) // All downloads have completed
                         {
                             delete_empty_list(active_seeders);
-                            state = AWAIT_NONE;
-                            if (pending_chunks->size > 0)
+                            if (pending_chunks->size > 0) // Need to retry failed downloads
                             {
+                                // Partial clean (all but pending_chunks)
+                                state = AWAIT_NONE;
+                                pending_ihave = 0;
+                                whohas_attempts = 0;
+                                whohas_last_active = 0;
+                                seeder_waitlist = NULL;
+                                active_seeders  = NULL;
+                                // Retry
                                 get_chunks(NULL, config);
+                            }
+                            else // Nothing else to do!
+                            {
+                                clean();
                             }
                         }
                     }
                 }
             }
-        DPRINTF(DEBUG_LEECHER, "\n");
+            DPRINTF(DEBUG_LEECHER, "\n");
         }
     }
 }
@@ -385,47 +401,56 @@ void clean()
     pending_ihave = 0;
     whohas_attempts = 0;
     whohas_last_active = 0;
+    get_attempts = 0;
     
-    ITER_LOOP(pending_chunks_it, pending_chunks)
+    if (pending_chunks)
     {
-        free(iter_drop_curr(pending_chunks_it));
-    }
-    ITER_END(pending_chunks_it);
-    
-    ITER_LOOP(active_seeders_it, active_seeders)
-    {
-        seeder_t* seeder = iter_get_item(active_seeders_it);
-        ITER_LOOP(dl_it, seeder->download_queue)
+        ITER_LOOP(pending_chunks_it, pending_chunks)
         {
-            download_t* dl = iter_get_item(dl_it);
-            free(dl->chunk);
-            free(iter_drop_curr(dl_it));
+            free(iter_drop_curr(pending_chunks_it));
         }
-        ITER_END(dl_it);
-        free(iter_drop_curr(active_seeders_it));
+        ITER_END(pending_chunks_it);
+        delete_empty_list(pending_chunks);
+        pending_chunks = NULL;
     }
-    ITER_END(active_seeders_it);
     
-    ITER_LOOP(seeder_waitlist_it, seeder_waitlist)
+    if (active_seeders)
     {
-        seeder_t* seeder = iter_get_item(seeder_waitlist_it);
-        ITER_LOOP(dl_it, seeder->download_queue)
+        ITER_LOOP(active_seeders_it, active_seeders)
         {
-            download_t* dl = iter_get_item(dl_it);
-            free(dl->chunk);
-            free(iter_drop_curr(dl_it));
+            seeder_t* seeder = iter_get_item(active_seeders_it);
+            ITER_LOOP(dl_it, seeder->download_queue)
+            {
+                download_t* dl = iter_get_item(dl_it);
+                free(dl->chunk);
+                free(iter_drop_curr(dl_it));
+            }
+            ITER_END(dl_it);
+            free(iter_drop_curr(active_seeders_it));
         }
-        ITER_END(dl_it);
-        free(iter_drop_curr(seeder_waitlist_it));
+        ITER_END(active_seeders_it);
+        delete_empty_list(active_seeders);
+        active_seeders = NULL;
     }
-    ITER_END(seeder_waitlist_it);
     
-    delete_empty_list(pending_chunks);
-    delete_empty_list(active_seeders);
-    delete_empty_list(seeder_waitlist);
-    pending_chunks = NULL;
-    seeder_waitlist = NULL;
-    active_seeders  = NULL;
+    if (seeder_waitlist)
+    {
+        ITER_LOOP(seeder_waitlist_it, seeder_waitlist)
+        {
+            seeder_t* seeder = iter_get_item(seeder_waitlist_it);
+            ITER_LOOP(dl_it, seeder->download_queue)
+            {
+                download_t* dl = iter_get_item(dl_it);
+                free(dl->chunk);
+                free(iter_drop_curr(dl_it));
+            }
+            ITER_END(dl_it);
+            free(iter_drop_curr(seeder_waitlist_it));
+        }
+        ITER_END(seeder_waitlist_it);
+        delete_empty_list(seeder_waitlist);
+        seeder_waitlist = NULL;
+    }
 }
 
 
@@ -440,7 +465,7 @@ void leecher_timeout(bt_config_t* config)
             {
                 DPRINTF(DEBUG_LEECHER, "AWAIT_IHAVE reached attempts limit (%d/%d)\n",
                         whohas_attempts, WHOHAS_RETRY);
-                perror("Could not gather all IHAVE packets");
+                perror("FATAL: Could not gather all IHAVE packets");
                 clean();
             }
             else if (now - whohas_last_active > WHOHAS_TIMEOUT)
