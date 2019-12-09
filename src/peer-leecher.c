@@ -326,7 +326,6 @@ void handle_DATA(PACKET_ARGS)
         {
             DPRINTF(DEBUG_LEECHER, "Waiting for sender timeout (attempts %d)\n", seeder->attempts);
         }
-        seeder->attempts += 1;
         seeder->last_active = get_time();
     }
     else if (seq_no == dl->expect_packet) // We expect this DATA packet
