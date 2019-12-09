@@ -305,7 +305,7 @@ void handle_DATA(PACKET_ARGS)
     // Assume packet corruption has occurred and ask for retransimission if
     // (1) we received more data than expected or
     // (2) seq_no is wrong
-    if (dl->remaining_bytes < payload_len || seq_no != dl->expect_packet)
+    if (dl->remaining_bytes < payload_len || seq_no > dl->expect_packet)
     {
         DPRINTF(DEBUG_LEECHER_RELIABLE, "* %3d DATA is corrupted. ", seq_no);
         
@@ -322,7 +322,7 @@ void handle_DATA(PACKET_ARGS)
         seeder->attempts += 1;
         seeder->last_active = get_time();
     }
-    else // We expect this DATA packet
+    else if (seq_no == dl->expect_packet) // We expect this DATA packet
     {
         // Copy payload data to local buffer
         size_t offset = BT_CHUNK_SIZE - dl->remaining_bytes;
