@@ -483,7 +483,7 @@ void leecher_timeout(bt_config_t* config)
         case AWAIT_IHAVE:
         {
             uint64_t now = get_time();
-            assert(now > whohas_last_active);
+            assert(now >= whohas_last_active);
             if (whohas_attempts >= WHOHAS_RETRY)
             {
                 DPRINTF(DEBUG_LEECHER, "AWAIT_IHAVE reached attempts limit (%d/%d)\n",
@@ -508,7 +508,7 @@ void leecher_timeout(bt_config_t* config)
             {
                 seeder_t* seeder = iter_get_item(active_seeder_it);
                 uint64_t now = get_time();
-                assert(now > seeder->last_active);
+                assert(now >= seeder->last_active);
                 if (seeder->attempts >= RELIABLE_RETRY)
                 {
                     DPRINTF(DEBUG_LEECHER, "Seeder %d reached attempts limit (%d/%d)\n",
