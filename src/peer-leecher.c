@@ -300,19 +300,26 @@ void handle_DATA(PACKET_ARGS)
         DPRINTF(DEBUG_LEECHER_RELIABLE, "Download confirmed by seeder %d\n", seeder->peer->id);
     }
     
-    DPRINTF(DEBUG_LEECHER_RELIABLE, "%3d DATA received\n", seq_no);
+//    DPRINTF(DEBUG_LEECHER_RELIABLE, "%3d DATA received\n", seq_no);
     
     // Assume packet corruption has occurred and ask for retransimission if
     // (1) we received more data than expected or
     // (2) seq_no is wrong
     if (dl->remaining_bytes < payload_len || seq_no > dl->expect_packet)
     {
-        DPRINTF(DEBUG_LEECHER_RELIABLE, "* %3d DATA is corrupted. ", seq_no);
+        if (dl->remaining_bytes < payload_len)
+        {
+            DPRINTF(DEBUG_LEECHER_RELIABLE, "* %3d DATA is corrupted\n", seq_no);
+        }
+        else
+        {
+            DPRINTF(DEBUG_LEECHER_RELIABLE, "* %3d DATA is out-of-order\n", seq_no);
+        }
         
         // Send duplicated ACK if not the first packet
         if (dl->expect_packet > 0)
         {
-            send_ack(dl->expect_packet-1, seeder->peer, config->sock);
+            send_ack(dl->expect_packet-1, seeder->peer, config->sock); // Dup ack does not require attempts
             DPRINTF(DEBUG_LEECHER, "Dup ack_no=%d (attempts %d)\n", dl->expect_packet-1, seeder->attempts);
         }
         else
