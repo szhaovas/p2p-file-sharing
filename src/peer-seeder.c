@@ -17,14 +17,16 @@
 #include "peer-reliable.h"
 
 #define DATA_PAYLOAD_LEN 1024
-
+#define SLIDING_WINDOW_SIZE 3
+#define FAULTY_ACK_TOLERANCE 3
 
 typedef struct _leecher_t {
     bt_peer_t* peer;
     chunk_t* seed_chunk;
-    uint32_t next_packet;
+    int num_faulty_ack;
+    uint32_t next_ack;
+    uint32_t next_to_send;
     uint32_t total_packets;
-    uint64_t remaining_bytes;
     uint8_t data[BT_CHUNK_SIZE];
     uint64_t last_active;
     int attempts;
@@ -69,17 +71,31 @@ void handle_WHOHAS(PACKET_ARGS)
 }
 
 
-void send_next_data_packet(leecher_t* leecher, int sock)
+void send_next_window(leecher_t* leecher, int sock)
 {
-    uint64_t offset = BT_CHUNK_SIZE - leecher->remaining_bytes;
-    uint64_t data_len = fmin(DATA_PAYLOAD_LEN, leecher->remaining_bytes);
     
-    send_data(leecher->next_packet,
+    uint64_t offset, data_len;
+    while (leecher->next_to_send < leecher->total_packets &&
+           leecher->next_to_send - leecher->next_ack < SLIDING_WINDOW_SIZE)
+    {
+        offset = leecher->next_to_send * DATA_PAYLOAD_LEN;
+        uint64_t remaining_bytes = BT_CHUNK_SIZE - offset;
+        data_len = fmin(DATA_PAYLOAD_LEN, remaining_bytes);
+        
+        
+        DPRINTF(DEBUG_SEEDER_RELIABLE, "%3d/%d DATA sent: ",
+                leecher->next_to_send,
+                leecher->total_packets);
+        
+        send_data(leecher->next_to_send,
               leecher->data + offset,
               data_len,
               leecher->peer,
               sock);
     
+        remaining_bytes -= data_len;
+        leecher->next_to_send += 1;
+    }
     leecher->attempts += 1;
     leecher->last_active = get_time();
 }
@@ -160,9 +176,10 @@ void handle_GET(PACKET_ARGS)
     memset(leecher, '\0', sizeof(leecher_t));
     leecher->peer = from;
     leecher->seed_chunk = seed_chunk;
-    leecher->next_packet = 0;
-    leecher->remaining_bytes = BT_CHUNK_SIZE;
-    leecher->total_packets = ceil((double) leecher->remaining_bytes / DATA_PAYLOAD_LEN);
+    leecher->next_ack = 0;
+    leecher->next_to_send = 0;
+    leecher->num_faulty_ack = 0;
+    leecher->total_packets = ceil((double) BT_CHUNK_SIZE / DATA_PAYLOAD_LEN);
     leecher->attempts = 0;
     // Read chunk data into the buffer
     if (read_data(leecher, config) < 0)
@@ -176,7 +193,7 @@ void handle_GET(PACKET_ARGS)
     // Send first data packet
     DPRINTF(DEBUG_SEEDER, "Seeding chunk %d (%s) to leecher %d\n",
             leecher->seed_chunk->id, leecher->seed_chunk->hash_str_short, leecher->peer->id);
-    send_next_data_packet(leecher, config->sock);
+    send_next_window(leecher, config->sock);
 }
 
 
@@ -210,24 +227,17 @@ void handle_ACK(PACKET_ARGS)
         return;
     }
     
-    if (ack_no == leecher->next_packet)
+    if (ack_no >= leecher->next_ack) // Accumulative ack
     {
         DPRINTF(DEBUG_SEEDER_RELIABLE, "%3d/%d ACK received\n", ack_no, leecher->total_packets);
+        leecher->num_faulty_ack = 0;
         leecher->attempts = 0;
         leecher->last_active = get_time();
-        // More data packets to send
-        if (leecher->remaining_bytes > DATA_PAYLOAD_LEN)
-        {
-            leecher->next_packet += 1;
-            leecher->remaining_bytes -= DATA_PAYLOAD_LEN;
-            send_next_data_packet(leecher, config->sock);
-            DPRINTF(DEBUG_SEEDER_RELIABLE, "%3d/%d DATA sent\n",
-                    leecher->next_packet,
-                    leecher->total_packets);
-        }
+        leecher->next_ack = ack_no + 1;
+        
         // Ack'ed data packet was the last one
         // => We are done seeding, so remove this leecher from the list
-        else
+        if (ack_no + 1 == leecher->total_packets)
         {
             DPRINTF(DEBUG_SEEDER, "Last ACK received.\n");
             DPRINTF(DEBUG_SEEDER, "Finished seeding chunk %d (%s) to leecher %d\n",
@@ -237,12 +247,22 @@ void handle_ACK(PACKET_ARGS)
             free(drop_node(leecher_list, leecher_node));
             DPRINTF(DEBUG_SEEDER, "\n");
         }
+        else
+        {
+            // Send data packets if any
+            send_next_window(leecher, config->sock);
+        }
+    
     }
     // Received duplicated ACK
-    else if (ack_no + 1 == leecher->next_packet)
+    else if (ack_no + 1 == leecher->next_ack)
     {
         DPRINTF(DEBUG_SEEDER_RELIABLE, "Retry (attempt %d/%d)\n", leecher->attempts, RELIABLE_RETRY);
-        send_next_data_packet(leecher, config->sock);
+        leecher->num_faulty_ack += 1;
+        if (leecher->num_faulty_ack >= FAULTY_ACK_TOLERANCE) { // Fast retransmission
+            leecher->next_to_send = ack_no + 1;
+            send_next_window(leecher, config->sock);
+        }
     }
     // Ignore unexpected ACK no
     else
@@ -260,7 +280,7 @@ void seeder_timeout(bt_config_t* config)
         leecher_t* leecher = iter_get_item(leecher_it);
         uint64_t now = get_time();
         uint64_t last_active = leecher->last_active;
-        assert (last_active < get_time());
+        assert (last_active <= now);
         if (now - last_active > RELIABLE_TIMEOUT)
         {
             DPRINTF(DEBUG_SEEDER, "Leecher %d timeout triggered (%llu)\n", leecher->peer->id, now-last_active);
@@ -273,7 +293,8 @@ void seeder_timeout(bt_config_t* config)
             else
             {
                 DPRINTF(DEBUG_SEEDER, "Retry (attempt %d/%d)\n", leecher->attempts, RELIABLE_RETRY);
-                send_next_data_packet(leecher, config->sock);
+                leecher->next_to_send = leecher->next_ack; // Go back N (go back to last not acked)
+                send_next_window(leecher, config->sock);
             }
         }
     }
