@@ -17,7 +17,7 @@
 #include "peer-reliable.h"
 
 #define DATA_PAYLOAD_LEN 1024
-#define INIT_SSTHRESH 8
+#define INIT_SSTHRESH 64
 #define FAULTY_ACK_TOLERANCE 3
 
 typedef struct _leecher_t {

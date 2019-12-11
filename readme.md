@@ -34,7 +34,17 @@ We implemented a sliding window algorithm to ensure reliable, in-order delivery 
 
 ## Congestion Control
 
-We implemented the following congestion control mechanisms:
+We implemented the following congestion control mechanisms.
+- The seeder maintains a list of leechers, and associates a congestion window (cw_size) and ssthresh to each of them. Therefore, there is not an aggregate congestion control for all the data going in and out of the seeder, but an independent congestion control for each connection. 
+- At the start of the transmission, congestion window is set to be 1 and ssthresh 64.
+- Congestion window is incremented by 1 upon each correct ACK before reaching ssthresh, and by 1/congestion_window upon each correct ACK after reaching ssthresh.
+- If a duplicate ACK occurs, ssthresh is set to half of the old congestion window (no smaller than 1), and congestion window is reset to the new ssthresh.
+- If a timeout occurs, ssthresh is set to half of the old congestion window (no smaller than 1), and congestion window is reset to 1.
+
+Notes.
+- windowsize-peer-<peer-id>.txt is created at the working directory. If you cannot find it, please go to peer.c line 336 to change the directory.
+- A windowsize-peer-<peer-id>.txt is created for each peer, whether it is the sender or leecher; this can result in some windowsize-peer-<peer-id>.txt files being empty (if the peer never seeds).
+- We set no upper bound for the congestion window during the AIMD phase.
 
 
 ## Other Design Choices
