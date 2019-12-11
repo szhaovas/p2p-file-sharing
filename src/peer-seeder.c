@@ -17,13 +17,16 @@
 #include "peer-reliable.h"
 
 #define DATA_PAYLOAD_LEN 1024
-#define SLIDING_WINDOW_SIZE 3
+#define INIT_SSTHRESH 8
 #define FAULTY_ACK_TOLERANCE 3
 
 typedef struct _leecher_t {
     bt_peer_t* peer;
     chunk_t* seed_chunk;
     int num_faulty_ack;
+    uint32_t prev_cw_size;
+    double cw_size;
+    double ssthresh;
     uint32_t next_ack;
     uint32_t next_to_send;
     uint32_t total_packets;
@@ -33,7 +36,6 @@ typedef struct _leecher_t {
 } leecher_t;
 
 LinkedList* leecher_list = NULL;
-
 
 void handle_WHOHAS(PACKET_ARGS)
 {
@@ -75,13 +77,17 @@ void send_next_window(leecher_t* leecher, int sock)
 {
     
     uint64_t offset, data_len;
+    uint32_t cw_size_int = (uint32_t) floor(leecher->cw_size);
     while (leecher->next_to_send < leecher->total_packets &&
-           leecher->next_to_send - leecher->next_ack < SLIDING_WINDOW_SIZE)
+           leecher->next_to_send - leecher->next_ack < cw_size_int)
     {
         offset = leecher->next_to_send * DATA_PAYLOAD_LEN;
         uint64_t remaining_bytes = BT_CHUNK_SIZE - offset;
         data_len = fmin(DATA_PAYLOAD_LEN, remaining_bytes);
         
+        DPRINTF(DEBUG_SEEDER, "cw_size(%3d): %.3f",
+                leecher->next_to_send,
+                leecher->cw_size);
         
         DPRINTF(DEBUG_SEEDER_RELIABLE, "%3d/%d DATA sent: ",
                 leecher->next_to_send,
@@ -179,6 +185,9 @@ void handle_GET(PACKET_ARGS)
     leecher->next_ack = 0;
     leecher->next_to_send = 0;
     leecher->num_faulty_ack = 0;
+    leecher->prev_cw_size = 0;
+    leecher->cw_size = 1;
+    leecher->ssthresh = INIT_SSTHRESH;
     leecher->total_packets = ceil((double) BT_CHUNK_SIZE / DATA_PAYLOAD_LEN);
     leecher->attempts = 0;
     // Read chunk data into the buffer
@@ -194,6 +203,19 @@ void handle_GET(PACKET_ARGS)
     DPRINTF(DEBUG_SEEDER, "Seeding chunk %d (%s) to leecher %d\n",
             leecher->seed_chunk->id, leecher->seed_chunk->hash_str_short, leecher->peer->id);
     send_next_window(leecher, config->sock);
+}
+
+
+// check if cw_size changes and print accordingly
+void print_to_plot(leecher_t* leecher, bt_config_t* config) {
+    double cw_size_diff = leecher->cw_size - leecher->prev_cw_size;
+    if (cw_size_diff >= 1 || cw_size_diff < 0) {
+        uint64_t time = get_time_milli() - config->launch_time;
+        uint32_t cw_size_int = (uint32_t) floor(leecher->cw_size);
+        FILE* cw_plot = fopen(config->cw_plot_file, "a");
+        fprintf(cw_plot, "%d\t%llu\t%d\n", leecher->seed_chunk->id, time, cw_size_int);
+        fclose(cw_plot);
+    }
 }
 
 
@@ -231,6 +253,15 @@ void handle_ACK(PACKET_ARGS)
     {
         DPRINTF(DEBUG_SEEDER_RELIABLE, "%3d/%d ACK received\n", ack_no, leecher->total_packets);
         leecher->num_faulty_ack = 0;
+        // modify cw_size
+        leecher->prev_cw_size = (uint32_t) floor(leecher->cw_size);
+        if (leecher->cw_size < leecher->ssthresh) {
+            leecher->cw_size += 1;
+        }
+        else {
+            leecher->cw_size = leecher->cw_size + 1/leecher->cw_size;
+        }
+        print_to_plot(leecher, config);
         leecher->attempts = 0;
         leecher->last_active = get_time();
         leecher->next_ack = ack_no + 1;
@@ -257,10 +288,15 @@ void handle_ACK(PACKET_ARGS)
     // Received duplicated ACK
     else if (ack_no + 1 == leecher->next_ack)
     {
-        DPRINTF(DEBUG_SEEDER_RELIABLE, "Retry (attempt %d/%d)\n", leecher->attempts, RELIABLE_RETRY);
+        DPRINTF(DEBUG_SEEDER_RELIABLE, "Dup ACK: Retry (attempt %d/%d)\n", leecher->attempts, RELIABLE_RETRY);
         leecher->num_faulty_ack += 1;
         if (leecher->num_faulty_ack >= FAULTY_ACK_TOLERANCE) { // Fast retransmission
             leecher->next_to_send = ack_no + 1;
+            // fast recovery
+            leecher->prev_cw_size = (uint32_t) floor(leecher->cw_size);
+            leecher->ssthresh = fmax(leecher->cw_size/2, 1);
+            leecher->cw_size = leecher->ssthresh;
+            print_to_plot(leecher, config);
             send_next_window(leecher, config->sock);
         }
     }
@@ -292,8 +328,13 @@ void seeder_timeout(bt_config_t* config)
             }
             else
             {
-                DPRINTF(DEBUG_SEEDER, "Retry (attempt %d/%d)\n", leecher->attempts, RELIABLE_RETRY);
+                DPRINTF(DEBUG_SEEDER, "TIMEOUT: Retry (attempt %d/%d)\n", leecher->attempts, RELIABLE_RETRY);
                 leecher->next_to_send = leecher->next_ack; // Go back N (go back to last not acked)
+                // slow start
+                leecher->prev_cw_size = (uint32_t) floor(leecher->cw_size);
+                leecher->ssthresh = fmax(leecher->cw_size/2, 1);
+                leecher->cw_size = 1;
+                print_to_plot(leecher, config);
                 send_next_window(leecher, config->sock);
             }
         }

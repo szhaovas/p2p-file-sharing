@@ -27,10 +27,12 @@ struct bt_config_s {
   char  has_chunk_file[BT_FILENAME_LEN];
   char  output_file[BT_FILENAME_LEN];
   char  peer_list_file[BT_FILENAME_LEN];
+  char  cw_plot_file[BT_FILENAME_LEN];
   int   max_conn;
   short identity;
   unsigned short myport;
   int sock;
+  uint64_t launch_time;
 
   int argc; 
   char **argv;

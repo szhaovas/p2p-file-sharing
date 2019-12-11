@@ -331,6 +331,12 @@ void peer_run(bt_config_t* config) {
     config->sock = sock;
 
     spiffy_init(config->identity, (struct sockaddr *) &myaddr, sizeof(myaddr));
+    
+    config->launch_time = get_time_milli();
+    sprintf(config->cw_plot_file, "/tmp/windowsize-peer-%i.txt", config->identity);
+    // overwrites old file
+    FILE* cw_plot = fopen(config->cw_plot_file, "w");
+    fclose(cw_plot);
 
     while (1) {
         int nfds;

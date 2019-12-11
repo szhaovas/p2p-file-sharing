@@ -188,6 +188,8 @@ uint16_t get_payload_len(uint8_t* packet)
 
 ssize_t send_packet(int sock, uint8_t* packet, const struct sockaddr_in* addr)
 {
+//    if (rand() % 100 == 0)
+//        return 0;
     return spiffy_sendto(sock,
                          packet,
                          get_packet_len(packet),
