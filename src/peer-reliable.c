@@ -11,7 +11,8 @@ uint64_t get_time()
     return now.tv_sec * SEC_TO_USEC + now.tv_usec;
 }
 
-uint64_t get_time_milli()
+uint64_t get_time_msec()
 {
-    return get_time()*USEC_TO_MSEC;
+#define MSEC_TO_USEC 1000
+    return get_time() / MSEC_TO_USEC;
 }
