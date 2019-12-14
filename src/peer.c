@@ -292,6 +292,14 @@ void peer_run(bt_config_t* config) {
         exit(-1);
     }
     fclose(master_chunk);
+    FILE* data_file = fopen(config->data_file, "r");
+    if (!data_file)
+    {
+        perror("peer_run could not read master data file");
+        fclose(data_file);
+        exit(-1);
+    }
+    fclose(data_file);
     printf("data-file:     %s\n", config->data_file);
     
     owned_chunks = new_list();
