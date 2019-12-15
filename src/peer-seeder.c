@@ -366,6 +366,7 @@ void handle_ACK(PACKET_ARGS)
 //            send_next_window(leecher, config->sock);
             send_next_packet(leecher, config->sock);
             adjust_window_loss_dup_ack(leecher, ack_no, config);
+            leecher->num_dup_ack = 0; 
         }
     }
     // Ignore unexpected ACK no
