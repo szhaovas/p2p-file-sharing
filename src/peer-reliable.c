@@ -3,6 +3,7 @@
 //
 #include <sys/time.h>
 #include "peer-reliable.h"
+#include <stdlib.h>
 
 uint64_t get_time()
 {
