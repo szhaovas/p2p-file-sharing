@@ -234,16 +234,27 @@ void remove_invalid(LinkedList* list)
         {
             Node* next_node = list->head->next;
             free(list->head);
-            list->head = next_node; // There is no prev link to fix
+            list->head = next_node;
+            list->head->prev = NULL;
+            
         }
     }
     
     // Remove invalid nodes at the tail
     while (list->tail && !list->tail->__valid)
     {
-        Node* prev_node = list->tail->prev;
-        free(list->tail);
-        list->tail = prev_node; // There is no prev link to fix
+        if (list->head == list->tail)
+        {
+            list->head = list->tail = NULL;
+            free(list->tail);
+        }
+        else
+        {
+            Node* prev_node = list->tail->prev;
+            free(list->tail);
+            list->tail = prev_node;
+            list->tail->next = NULL;
+        }
     }
     
     // Remove invalid nodes after valid head
