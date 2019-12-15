@@ -400,7 +400,7 @@ void handle_DATA(PACKET_ARGS)
                         {
                             clean(CLEAN_PENDING);
                         }
-                        else // Need to retry accumulated failed downloads
+                        else if (active_seeders->size == 0) // Need to retry accumulated failed downloads
                         {
                             clean(DO_NOT_CLEAN_PENDING);
                             get_chunks(NULL, config);
