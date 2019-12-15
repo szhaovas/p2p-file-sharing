@@ -562,7 +562,10 @@ void leecher_timeout(bt_config_t* config)
                 }
             }
             ITER_END(active_seeder_it);
-            if (active_seeders->size == 0)
+            // Need to retry accumulated failed downloads
+            if (active_seeders->size == 0 &&
+                seeder_waitlist->size == 0 &&
+                pending_chunks->size > 0)
             {
                 clean(DO_NOT_CLEAN_PENDING);
                 get_chunks(NULL, config);
