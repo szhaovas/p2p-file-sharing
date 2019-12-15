@@ -64,9 +64,10 @@ bt_peer_t* find_peer_with_addr(struct sockaddr_in* addr)
     bt_peer_t* found = NULL;
     for (bt_peer_t* peer = config.peers; peer; peer = peer->next)
     {
-        if (!memcmp(&peer->addr.sin_addr, &addr->sin_addr, sizeof(addr->sin_addr))
-            && !memcmp(&peer->addr.sin_port, &addr->sin_port, sizeof(addr->sin_port))
-            && !memcmp(&peer->addr.sin_family, &addr->sin_family, sizeof(addr->sin_family)))
+        if (
+//            !memcmp(&peer->addr.sin_addr, &addr->sin_addr, sizeof(addr->sin_addr)) &&
+            !memcmp(&peer->addr.sin_port, &addr->sin_port, sizeof(addr->sin_port)) &&
+            !memcmp(&peer->addr.sin_family, &addr->sin_family, sizeof(addr->sin_family)))
         {
             found = peer;
             break;
@@ -329,6 +330,7 @@ void peer_run(bt_config_t* config) {
     bzero(&myaddr, sizeof(myaddr));
     myaddr.sin_family = AF_INET;
     myaddr.sin_addr.s_addr = htonl(INADDR_ANY);
+//    inet_aton("127.0.0.1", (struct in_addr *) &myaddr.sin_addr.s_addr);
     myaddr.sin_port = htons(config->myport);
 
     if (bind(sock, (struct sockaddr *) &myaddr, sizeof(myaddr)) == -1) {
