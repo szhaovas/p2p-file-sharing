@@ -180,8 +180,6 @@
 				BF34CE3223898F6C00DABAEB /* test_input_buffer.c */,
 				BF34CE2D23898F6C00DABAEB /* chunk.h */,
 				BF34CE3823898F6C00DABAEB /* chunk.c */,
-				BF34CE2923898F6C00DABAEB /* nodes.map */,
-				BF34CE3B23898F6C00DABAEB /* topo.map */,
 				BF34CE2823898F6C00DABAEB /* debug.h */,
 				BF34CE3523898F6C00DABAEB /* debug.c */,
 				BF34CE2B23898F6C00DABAEB /* debug-text.h */,
@@ -195,6 +193,8 @@
 				BF34CE2723898F6C00DABAEB /* make_chunks.c */,
 				BF34CE3423898F6C00DABAEB /* client.c */,
 				BF34CE3323898F6C00DABAEB /* server.c */,
+				BF34CE2923898F6C00DABAEB /* nodes.map */,
+				BF34CE3B23898F6C00DABAEB /* topo.map */,
 			);
 			path = src;
 			sourceTree = "<group>";

@@ -337,7 +337,7 @@ void handle_DATA(PACKET_ARGS)
         
         // Ack
         send_ack(dl->expect_packet, seeder->peer, config->sock);
-        DPRINTF(DEBUG_LEECHER_RELIABLE, "%3d ACK sent\n", dl->expect_packet);
+        DPRINTF(DEBUG_LEECHER_RELIABLE, "%d: %3d ACK sent\n", seeder->peer->id, dl->expect_packet);
         dl->expect_packet += 1;
         seeder->attempts = 1; // reset attempts
         seeder->last_active = get_time();

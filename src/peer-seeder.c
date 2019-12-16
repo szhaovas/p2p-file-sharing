@@ -111,7 +111,8 @@ void send_next_window(leecher_t* leecher, int sock)
         uint64_t remaining_bytes = BT_CHUNK_SIZE - offset;
         data_len = fmin(DATA_PAYLOAD_LEN, remaining_bytes);
         
-        DPRINTF(DEBUG_SEEDER_RELIABLE, "%3d/%d DATA sent\n",
+        DPRINTF(DEBUG_SEEDER_RELIABLE, "%d: %3d/%d DATA sent\n",
+                leecher->peer->id,
                 w->next_to_send,
                 w->total_packets);
         
@@ -298,7 +299,6 @@ void adjust_window_loss_dup_ack(leecher_t* leecher, uint32_t ack_no, bt_config_t
 }
 
 
-
 void handle_ACK(PACKET_ARGS)
 {
     if (!leecher_list)
@@ -331,7 +331,7 @@ void handle_ACK(PACKET_ARGS)
     
     if (ack_no >= leecher->window.next_ack) // Accumulative ack
     {
-        DPRINTF(DEBUG_SEEDER_RELIABLE, "%3d/%d ACK received\n", ack_no, leecher->window.total_packets);
+        DPRINTF(DEBUG_SEEDER_RELIABLE, "%d: %3d/%d ACK received\n", leecher->peer->id, ack_no, leecher->window.total_packets);
         leecher->num_dup_ack = 0;
         adjust_window_ack(leecher, ack_no, config);
         leecher->attempts = 0;
@@ -366,7 +366,7 @@ void handle_ACK(PACKET_ARGS)
 //            send_next_window(leecher, config->sock);
             send_next_packet(leecher, config->sock);
             adjust_window_loss_dup_ack(leecher, ack_no, config);
-            leecher->num_dup_ack = 0; 
+            leecher->num_dup_ack = 0;
         }
     }
     // Ignore unexpected ACK no
